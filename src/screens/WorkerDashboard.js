@@ -44,14 +44,14 @@ const WorkerDashboard = ({ navigation }) => {
       title: 'My Projects',
       subtitle: 'View assigned projects',
       color: COLORS.warning,
-      onPress: () => Alert.alert('Coming Soon', 'Project list will be available soon'),
+      onPress: () => navigation.navigate('ProjectList'),
     },
     {
       icon: User,
       title: 'My Profile',
       subtitle: 'View and update profile',
       color: COLORS.darkGray,
-      onPress: () => Alert.alert('Coming Soon', 'Profile screen will be available soon'),
+      onPress: () => navigation.navigate('WorkerProfile'),
     },
   ];
 

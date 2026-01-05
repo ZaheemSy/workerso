@@ -12,8 +12,36 @@ import SignupScreen from './src/screens/SignupScreen';
 import WorkerDashboard from './src/screens/WorkerDashboard';
 import AdminDashboard from './src/screens/AdminDashboard';
 import SuperAdminDashboard from './src/screens/SuperAdminDashboard';
+import DeveloperDashboard from './src/screens/DeveloperDashboard';
 import AttendanceCameraScreen from './src/screens/AttendanceCameraScreen';
 import WorkLogScreen from './src/screens/WorkLogScreen';
+
+// Worker Group screens
+import WorkerGroupListScreen from './src/screens/WorkerGroupListScreen';
+import WorkerGroupDetailScreen from './src/screens/WorkerGroupDetailScreen';
+import CreateWorkerGroupScreen from './src/screens/CreateWorkerGroupScreen';
+
+// Project screens
+import CreateProjectScreen from './src/screens/CreateProjectScreen';
+import ProjectListScreen from './src/screens/ProjectListScreen';
+import ProjectDetailScreen from './src/screens/ProjectDetailScreen';
+import WorkerChecklistScreen from './src/screens/WorkerChecklistScreen';
+import WorksitePhotoUploadScreen from './src/screens/WorksitePhotoUploadScreen';
+
+// Admin tools
+import AddWorkerScreen from './src/screens/AddWorkerScreen';
+import CreateAdminScreen from './src/screens/CreateAdminScreen';
+import AttendanceRecordsScreen from './src/screens/AttendanceRecordsScreen';
+import WorkLogsViewScreen from './src/screens/WorkLogsViewScreen';
+
+// Profile screens
+import OrganizationProfileScreen from './src/screens/OrganizationProfileScreen';
+import AdminProfileScreen from './src/screens/AdminProfileScreen';
+import WorkerProfileScreen from './src/screens/WorkerProfileScreen';
+
+// Reports and Settings
+import ReportsScreen from './src/screens/ReportsScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -41,25 +69,84 @@ function AppNavigator() {
       ) : (
         // Main App Stack - Role-based routing
         <>
+          {session.role === ROLES.DEVELOPER && (
+            <>
+              <Stack.Screen name="DeveloperDashboard" component={DeveloperDashboard} />
+              <Stack.Screen name="OrganizationProfile" component={OrganizationProfileScreen} />
+              <Stack.Screen name="Settings" component={SettingsScreen} />
+            </>
+          )}
+
           {session.role === ROLES.WORKER && (
             <>
               <Stack.Screen name="WorkerDashboard" component={WorkerDashboard} />
               <Stack.Screen name="AttendanceCamera" component={AttendanceCameraScreen} />
               <Stack.Screen name="WorkLog" component={WorkLogScreen} />
+              <Stack.Screen name="WorkerProfile" component={WorkerProfileScreen} />
+              <Stack.Screen name="ProjectList" component={ProjectListScreen} />
+              <Stack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
             </>
           )}
 
           {session.role === ROLES.ADMIN && (
             <>
               <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
+              <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
+
+              {/* Worker Management */}
+              <Stack.Screen name="AddWorker" component={AddWorkerScreen} />
+              <Stack.Screen name="WorkerGroupList" component={WorkerGroupListScreen} />
+              <Stack.Screen name="WorkerGroupDetail" component={WorkerGroupDetailScreen} />
+              <Stack.Screen name="CreateWorkerGroup" component={CreateWorkerGroupScreen} />
+
+              {/* Project Management */}
+              <Stack.Screen name="CreateProject" component={CreateProjectScreen} />
+              <Stack.Screen name="ProjectList" component={ProjectListScreen} />
+              <Stack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
+              <Stack.Screen name="WorkerChecklist" component={WorkerChecklistScreen} />
+              <Stack.Screen name="WorksitePhotoUpload" component={WorksitePhotoUploadScreen} />
+
+              {/* Records & Logs */}
+              <Stack.Screen name="AttendanceRecords" component={AttendanceRecordsScreen} />
+              <Stack.Screen name="WorkLogsView" component={WorkLogsViewScreen} />
+
+              {/* Attendance & Work */}
               <Stack.Screen name="AttendanceCamera" component={AttendanceCameraScreen} />
               <Stack.Screen name="WorkLog" component={WorkLogScreen} />
+
+              {/* Settings */}
+              <Stack.Screen name="Settings" component={SettingsScreen} />
             </>
           )}
 
           {session.role === ROLES.SUPER_ADMIN && (
             <>
               <Stack.Screen name="SuperAdminDashboard" component={SuperAdminDashboard} />
+
+              {/* Admin Management */}
+              <Stack.Screen name="CreateAdmin" component={CreateAdminScreen} />
+              <Stack.Screen name="AddWorker" component={AddWorkerScreen} />
+
+              {/* Worker Groups */}
+              <Stack.Screen name="WorkerGroupList" component={WorkerGroupListScreen} />
+              <Stack.Screen name="WorkerGroupDetail" component={WorkerGroupDetailScreen} />
+              <Stack.Screen name="CreateWorkerGroup" component={CreateWorkerGroupScreen} />
+
+              {/* Projects */}
+              <Stack.Screen name="CreateProject" component={CreateProjectScreen} />
+              <Stack.Screen name="ProjectList" component={ProjectListScreen} />
+              <Stack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
+              <Stack.Screen name="WorkerChecklist" component={WorkerChecklistScreen} />
+              <Stack.Screen name="WorksitePhotoUpload" component={WorksitePhotoUploadScreen} />
+
+              {/* Records & Reports */}
+              <Stack.Screen name="AttendanceRecords" component={AttendanceRecordsScreen} />
+              <Stack.Screen name="WorkLogsView" component={WorkLogsViewScreen} />
+              <Stack.Screen name="Reports" component={ReportsScreen} />
+
+              {/* Profile & Settings */}
+              <Stack.Screen name="OrganizationProfile" component={OrganizationProfileScreen} />
+              <Stack.Screen name="Settings" component={SettingsScreen} />
             </>
           )}
         </>
