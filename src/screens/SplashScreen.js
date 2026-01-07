@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { Briefcase } from 'lucide-react-native';
-import { COLORS } from '../constants/colors';
+import { View, StyleSheet, Text } from 'react-native';
+import LottieView from 'lottie-react-native';
 
 const SplashScreen = ({ navigation }) => {
   useEffect(() => {
+    if (!navigation) return;
+
     const timer = setTimeout(() => {
       navigation.replace('Login');
     }, 2000);
@@ -14,10 +15,15 @@ const SplashScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Briefcase color={COLORS.white} size={80} strokeWidth={1.5} />
-      <Text style={styles.title}>Workerso</Text>
-      <Text style={styles.subtitle}>Workforce & Attendance Tracker</Text>
-      <ActivityIndicator color={COLORS.white} size="large" style={styles.loader} />
+      <LottieView
+        source={require('../assets/json/Rocket.json')}
+        autoPlay
+        loop
+        style={styles.animation}
+      />
+      <Text style={{ fontWeight: 'bold', fontSize: 24, color: '#6b78e8ff' }}>
+        Workerso
+      </Text>
     </View>
   );
 };
@@ -25,24 +31,13 @@ const SplashScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
+    backgroundColor: '#FAF9F6', // Off-white color
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: COLORS.white,
-    marginTop: 20,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: COLORS.white,
-    opacity: 0.9,
-    marginTop: 8,
-  },
-  loader: {
-    marginTop: 40,
+  animation: {
+    width: 220,
+    height: 220,
   },
 });
 

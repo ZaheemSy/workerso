@@ -38,6 +38,7 @@ import WorkLogsViewScreen from './src/screens/WorkLogsViewScreen';
 import WorkersListScreen from './src/screens/WorkersListScreen';
 import WorkerGroupsListScreen from './src/screens/WorkerGroupsListScreen';
 import DesignationsScreen from './src/screens/DesignationsScreen';
+import TemporarySplashScreen from './src/screens/TemporarySplashScreen';
 
 // Profile screens
 import OrganizationProfileScreen from './src/screens/OrganizationProfileScreen';
@@ -89,6 +90,7 @@ function AppNavigator() {
           {session.role === ROLES.WORKER && (
             <>
               <Stack.Screen name="WorkerDashboard" component={WorkerDashboard} />
+              <Stack.Screen name="TemporarySplash" component={TemporarySplashScreen} />
               <Stack.Screen name="AttendanceCamera" component={AttendanceCameraScreen} />
               <Stack.Screen name="WorkLog" component={WorkLogScreen} />
               <Stack.Screen name="WorkerProfile" component={WorkerProfileScreen} />
@@ -100,6 +102,7 @@ function AppNavigator() {
           {session.role === ROLES.ADMIN && (
             <>
               <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
+              <Stack.Screen name="TemporarySplash" component={TemporarySplashScreen} />
               <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
 
               {/* Worker Management */}
@@ -134,6 +137,7 @@ function AppNavigator() {
           {session.role === ROLES.SUPER_ADMIN && (
             <>
               <Stack.Screen name="SuperAdminDashboard" component={SuperAdminDashboard} />
+              <Stack.Screen name="TemporarySplash" component={TemporarySplashScreen} />
 
               {/* Admin and Worker Management */}
               <Stack.Screen name="AdminsAndWorkers" component={AdminsAndWorkersScreen} />

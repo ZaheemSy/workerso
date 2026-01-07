@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { UserCog, Users, Briefcase, Shield, Settings, LogOut, Building2, FileBarChart, UserPlus, Award, UserCircle } from 'lucide-react-native';
+import { UserCog, Users, Briefcase, Shield, Settings, LogOut, Building2, FileBarChart, UserPlus, Award, UserCircle, Play } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -86,10 +86,12 @@ const SuperAdminDashboard = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Hello,</Text>
-          <Text style={styles.name}>{session?.name || 'Super Admin'}</Text>
-          <Text style={styles.role}>Super Admin</Text>
+        <View style={styles.headerLeft}>
+          <View>
+            <Text style={styles.greeting}>Hello,</Text>
+            <Text style={styles.name}>{session?.name || 'Super Admin'}</Text>
+            <Text style={styles.role}>Super Admin</Text>
+          </View>
         </View>
         <View style={styles.headerButtons}>
           <TouchableOpacity
@@ -105,6 +107,16 @@ const SuperAdminDashboard = ({ navigation }) => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Temporary Button */}
+        <TouchableOpacity
+          style={styles.temporaryButton}
+          onPress={() => navigation.navigate('TemporarySplash')}
+          activeOpacity={0.7}
+        >
+          <Play color={COLORS.white} size={20} />
+          <Text style={styles.temporaryButtonText}>Temporary</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.topButton}
           onPress={() => navigation.navigate('AdminsAndWorkers')}
@@ -152,6 +164,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  headerAnimation: {
+    width: 50,
+    height: 50,
+    marginBottom: -5,
+  },
   greeting: {
     fontSize: 16,
     color: COLORS.textLight,
@@ -181,6 +203,23 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 24,
+  },
+  temporaryButton: {
+    backgroundColor: COLORS.secondary,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: COLORS.secondary,
+  },
+  temporaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.white,
+    marginLeft: 8,
   },
   topButton: {
     backgroundColor: COLORS.white,
