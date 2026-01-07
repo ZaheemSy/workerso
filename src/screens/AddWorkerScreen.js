@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,16 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { User, Mail, Phone, Lock, UserPlus, X } from 'lucide-react-native';
+import { User, Mail, Phone, Lock, UserPlus, X, ShieldCheck, Circle, Award, Check } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
-import { createUser } from '../services/storageService';
+import {
+  createUser,
+  getUsersByOrg,
+  getDesignationsByOrg,
+  createDesignation
+} from '../services/storageService';
 
 const AddWorkerScreen = ({ navigation }) => {
   const { session } = useAuth();
@@ -27,6 +32,63 @@ const AddWorkerScreen = ({ navigation }) => {
     confirmPassword: '',
   });
   const [loading, setLoading] = useState(false);
+  const [admins, setAdmins] = useState([]);
+  const [selectedAdminId, setSelectedAdminId] = useState(null); // null means directly under Super Admin
+  const [designations, setDesignations] = useState([]);
+  const [selectedDesignationId, setSelectedDesignationId] = useState(null);
+  const [showNewDesignationInput, setShowNewDesignationInput] = useState(false);
+  const [newDesignationName, setNewDesignationName] = useState('');
+
+  useEffect(() => {
+    loadDesignations();
+    // Only load admins if the current user is Super Admin
+    if (session.role === ROLES.SUPER_ADMIN) {
+      loadAdmins();
+    }
+  }, []);
+
+  const loadAdmins = async () => {
+    try {
+      const allUsers = await getUsersByOrg(session.orgId);
+      const adminsList = allUsers.filter(user => user.role === ROLES.ADMIN);
+      setAdmins(adminsList);
+    } catch (error) {
+      console.error('Error loading admins:', error);
+    }
+  };
+
+  const loadDesignations = async () => {
+    try {
+      const designationsList = await getDesignationsByOrg(session.orgId);
+      setDesignations(designationsList);
+    } catch (error) {
+      console.error('Error loading designations:', error);
+    }
+  };
+
+  const handleAddNewDesignation = async () => {
+    if (!newDesignationName.trim()) {
+      Alert.alert('Error', 'Please enter designation name');
+      return;
+    }
+
+    try {
+      const newDesignation = await createDesignation({
+        orgId: session.orgId,
+        name: newDesignationName.trim(),
+        createdBy: session.userId,
+      });
+
+      await loadDesignations();
+      setSelectedDesignationId(newDesignation.designationId);
+      setNewDesignationName('');
+      setShowNewDesignationInput(false);
+      Alert.alert('Success', 'Designation created successfully');
+    } catch (error) {
+      console.error('Error creating designation:', error);
+      Alert.alert('Error', 'Failed to create designation');
+    }
+  };
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -68,6 +130,17 @@ const AddWorkerScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
+      // Determine adminId based on user role
+      let assignedAdminId = null;
+
+      if (session.role === ROLES.ADMIN) {
+        // If current user is Admin, automatically assign to themselves
+        assignedAdminId = session.userId;
+      } else if (session.role === ROLES.SUPER_ADMIN) {
+        // If Super Admin, use the selected admin (or null for direct assignment)
+        assignedAdminId = selectedAdminId;
+      }
+
       const worker = await createUser({
         orgId: session.orgId,
         role: ROLES.WORKER,
@@ -76,6 +149,9 @@ const AddWorkerScreen = ({ navigation }) => {
         phone: formData.phone.trim(),
         username: formData.username.trim().toLowerCase(),
         password: formData.password,
+        adminId: assignedAdminId,
+        designationId: selectedDesignationId,
+        createdBy: session.userId, // Track who created this worker
         extraDetails: {},
       });
 
@@ -84,9 +160,20 @@ const AddWorkerScreen = ({ navigation }) => {
       }
 
       setLoading(false);
+
+      // Create success message based on role
+      let adminInfo = '';
+      if (session.role === ROLES.ADMIN) {
+        adminInfo = '\nAssigned to: You';
+      } else if (selectedAdminId) {
+        adminInfo = `\nAssigned to: ${admins.find(a => a.userId === selectedAdminId)?.name || 'Admin'}`;
+      } else {
+        adminInfo = '\nDirectly under Super Admin';
+      }
+
       Alert.alert(
         'Success!',
-        `Worker account created successfully.\n\nUsername: ${worker.username}\nPassword: ${formData.password}\n\nPlease share these credentials with the worker.`,
+        `Worker account created successfully.${adminInfo}\n\nUsername: ${worker.username}\nPassword: ${formData.password}\n\nPlease share these credentials with the worker.`,
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
@@ -149,6 +236,171 @@ const AddWorkerScreen = ({ navigation }) => {
             keyboardType="phone-pad"
           />
         </View>
+
+        {/* Designation Selection */}
+        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Designation</Text>
+        <Text style={styles.sectionSubtitle}>
+          Select a job title or role for this worker
+        </Text>
+
+        {designations.map((designation) => (
+          <TouchableOpacity
+            key={designation.designationId}
+            style={[
+              styles.adminCard,
+              selectedDesignationId === designation.designationId && styles.adminCardSelected,
+            ]}
+            onPress={() => setSelectedDesignationId(designation.designationId)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.adminInfo}>
+              <Award color={COLORS.gray} size={20} style={{ marginRight: 12 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.adminName}>{designation.name}</Text>
+              </View>
+            </View>
+            <View
+              style={[
+                styles.radioButton,
+                selectedDesignationId === designation.designationId && styles.radioButtonSelected,
+              ]}
+            >
+              {selectedDesignationId === designation.designationId && (
+                <Circle color={COLORS.primary} size={12} fill={COLORS.primary} />
+              )}
+            </View>
+          </TouchableOpacity>
+        ))}
+
+        {/* Add New Designation Option */}
+        {!showNewDesignationInput ? (
+          <TouchableOpacity
+            style={styles.addDesignationButton}
+            onPress={() => setShowNewDesignationInput(true)}
+            activeOpacity={0.7}
+          >
+            <Award color={COLORS.primary} size={20} />
+            <Text style={styles.addDesignationText}>Add New Designation</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.newDesignationContainer}>
+            <View style={styles.inputContainer}>
+              <Award color={COLORS.gray} size={20} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Designation Name (e.g., Carpenter)"
+                placeholderTextColor={COLORS.gray}
+                value={newDesignationName}
+                onChangeText={setNewDesignationName}
+                autoCapitalize="words"
+              />
+            </View>
+            <View style={styles.inlineButtonsRow}>
+              <TouchableOpacity
+                style={styles.inlineCancelButton}
+                onPress={() => {
+                  setShowNewDesignationInput(false);
+                  setNewDesignationName('');
+                }}
+              >
+                <X color={COLORS.danger} size={18} />
+                <Text style={styles.inlineCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.inlineCreateButton}
+                onPress={handleAddNewDesignation}
+              >
+                <Check color={COLORS.white} size={18} />
+                <Text style={styles.inlineCreateButtonText}>Create</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {designations.length === 0 && !showNewDesignationInput && (
+          <View style={styles.noAdminContainer}>
+            <Text style={styles.noAdminText}>No designations available</Text>
+            <Text style={styles.noAdminSubtext}>Add a designation above to assign to this worker</Text>
+          </View>
+        )}
+
+        {/* Only show admin assignment section for Super Admin */}
+        {session.role === ROLES.SUPER_ADMIN && (
+          <>
+            <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Assign to Admin (Optional)</Text>
+            <Text style={styles.sectionSubtitle}>
+              Select an admin to assign this worker, or leave unselected to keep directly under you
+            </Text>
+
+            {/* Option: Directly under Super Admin */}
+            <TouchableOpacity
+              style={[
+                styles.adminCard,
+                selectedAdminId === null && styles.adminCardSelected,
+              ]}
+              onPress={() => setSelectedAdminId(null)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.adminInfo}>
+                <ShieldCheck color={COLORS.primary} size={20} style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.adminName}>Directly under Super Admin</Text>
+                  <Text style={styles.adminSubtext}>Worker will report directly to you</Text>
+                </View>
+              </View>
+              <View
+                style={[
+                  styles.radioButton,
+                  selectedAdminId === null && styles.radioButtonSelected,
+                ]}
+              >
+                {selectedAdminId === null && <Circle color={COLORS.primary} size={12} fill={COLORS.primary} />}
+              </View>
+            </TouchableOpacity>
+
+            {/* List of Admins */}
+            {admins.length > 0 && (
+              <>
+                {admins.map((admin) => (
+                  <TouchableOpacity
+                    key={admin.userId}
+                    style={[
+                      styles.adminCard,
+                      selectedAdminId === admin.userId && styles.adminCardSelected,
+                    ]}
+                    onPress={() => setSelectedAdminId(admin.userId)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.adminInfo}>
+                      <User color={COLORS.gray} size={20} style={{ marginRight: 12 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.adminName}>{admin.name}</Text>
+                        <Text style={styles.adminSubtext}>@{admin.username}</Text>
+                      </View>
+                    </View>
+                    <View
+                      style={[
+                        styles.radioButton,
+                        selectedAdminId === admin.userId && styles.radioButtonSelected,
+                      ]}
+                    >
+                      {selectedAdminId === admin.userId && (
+                        <Circle color={COLORS.primary} size={12} fill={COLORS.primary} />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+
+            {admins.length === 0 && (
+              <View style={styles.noAdminContainer}>
+                <Text style={styles.noAdminText}>No admins available yet</Text>
+                <Text style={styles.noAdminSubtext}>Create admins first or worker will be directly under you</Text>
+              </View>
+            )}
+          </>
+        )}
 
         <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Login Credentials</Text>
 
@@ -239,6 +491,74 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginBottom: 12,
   },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginBottom: 16,
+  },
+  adminCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 2,
+    borderColor: COLORS.border,
+  },
+  adminCardSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary + '05',
+  },
+  adminInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  adminName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  adminSubtext: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginTop: 2,
+  },
+  radioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioButtonSelected: {
+    borderColor: COLORS.primary,
+  },
+  noAdminContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+  },
+  noAdminText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textLight,
+    textAlign: 'center',
+  },
+  noAdminSubtext: {
+    fontSize: 12,
+    color: COLORS.textLight,
+    textAlign: 'center',
+    marginTop: 4,
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -278,6 +598,63 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontWeight: '600',
+  },
+  addDesignationButton: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    borderStyle: 'dashed',
+  },
+  addDesignationText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.primary,
+    marginLeft: 8,
+  },
+  newDesignationContainer: {
+    marginBottom: 12,
+  },
+  inlineButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  inlineCancelButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+  },
+  inlineCancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.danger,
+    marginLeft: 6,
+  },
+  inlineCreateButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    padding: 12,
+  },
+  inlineCreateButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.white,
+    marginLeft: 6,
   },
 });
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { UserCog, Users, Briefcase, Shield, Settings, LogOut, Building2, FileBarChart } from 'lucide-react-native';
+import { UserCog, Users, Briefcase, Shield, Settings, LogOut, Building2, FileBarChart, UserPlus, Award, UserCircle } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -33,11 +33,25 @@ const SuperAdminDashboard = ({ navigation }) => {
       onPress: () => navigation.navigate('CreateAdmin'),
     },
     {
+      icon: UserPlus,
+      title: 'Workers',
+      subtitle: 'View and manage workers',
+      color: COLORS.success,
+      onPress: () => navigation.navigate('WorkersList'),
+    },
+    {
       icon: Users,
       title: 'Worker Groups',
       subtitle: 'Manage worker teams',
       color: COLORS.secondary,
-      onPress: () => navigation.navigate('WorkerGroupList'),
+      onPress: () => navigation.navigate('WorkerGroupsList'),
+    },
+    {
+      icon: Award,
+      title: 'Designations',
+      subtitle: 'Manage job titles',
+      color: COLORS.primary,
+      onPress: () => navigation.navigate('Designations'),
     },
     {
       icon: Briefcase,
@@ -77,12 +91,29 @@ const SuperAdminDashboard = ({ navigation }) => {
           <Text style={styles.name}>{session?.name || 'Super Admin'}</Text>
           <Text style={styles.role}>Super Admin</Text>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <LogOut color={COLORS.danger} size={24} />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('OrganizationProfile')}
+            style={styles.profileButton}
+          >
+            <UserCircle color={COLORS.primary} size={24} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+            <LogOut color={COLORS.danger} size={24} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity
+          style={styles.topButton}
+          onPress={() => navigation.navigate('AdminsAndWorkers')}
+          activeOpacity={0.7}
+        >
+          <Users color={COLORS.primary} size={24} />
+          <Text style={styles.topButtonText}>Admins and Workers</Text>
+        </TouchableOpacity>
+
         <Text style={styles.sectionTitle}>Administration</Text>
 
         <View style={styles.grid}>
@@ -136,12 +167,37 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginTop: 2,
   },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  profileButton: {
+    padding: 8,
+  },
   logoutButton: {
     padding: 8,
   },
   content: {
     flex: 1,
     padding: 24,
+  },
+  topButton: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+  },
+  topButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.primary,
+    marginLeft: 12,
   },
   sectionTitle: {
     fontSize: 18,

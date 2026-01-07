@@ -1,11 +1,90 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { Users, Briefcase, Camera, FileText, UserPlus, LogOut, FolderOpen } from 'lucide-react-native';
+import { Users, Briefcase, Camera, FileText, UserPlus, LogOut, FolderOpen, Clock, LogIn as ClockInIcon, LogOut as ClockOutIcon, Award, UserCircle } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
+import { getUserById, createAttendance, getAttendanceByUser } from '../services/storageService';
 
 const AdminDashboard = ({ navigation }) => {
   const { session, logout } = useAuth();
+  const [userDetails, setUserDetails] = useState(null);
+  const [isClockedIn, setIsClockedIn] = useState(false);
+  const [clockInTime, setClockInTime] = useState(null);
+
+  useEffect(() => {
+    loadUserDetails();
+    checkClockInStatus();
+  }, []);
+
+  const loadUserDetails = async () => {
+    try {
+      const user = await getUserById(session.userId);
+      setUserDetails(user);
+    } catch (error) {
+      console.error('Error loading user details:', error);
+    }
+  };
+
+  const checkClockInStatus = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const todayAttendance = await getAttendanceByUser(session.userId, today);
+
+      if (todayAttendance && todayAttendance.length > 0) {
+        const latestAttendance = todayAttendance[todayAttendance.length - 1];
+        if (latestAttendance.type === 'clock_in' && !latestAttendance.clockOutTime) {
+          setIsClockedIn(true);
+          setClockInTime(latestAttendance.clockInTime);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking clock-in status:', error);
+    }
+  };
+
+  const handleClockIn = async () => {
+    try {
+      const now = new Date();
+      await createAttendance({
+        userId: session.userId,
+        orgId: session.orgId,
+        date: now.toISOString().split('T')[0],
+        clockInTime: now.toISOString(),
+        type: 'clock_in',
+      });
+      setIsClockedIn(true);
+      setClockInTime(now.toISOString());
+      Alert.alert('Success', 'You have clocked in successfully!');
+    } catch (error) {
+      console.error('Error clocking in:', error);
+      Alert.alert('Error', 'Failed to clock in. Please try again.');
+    }
+  };
+
+  const handleClockOut = async () => {
+    try {
+      const now = new Date();
+      await createAttendance({
+        userId: session.userId,
+        orgId: session.orgId,
+        date: now.toISOString().split('T')[0],
+        clockOutTime: now.toISOString(),
+        type: 'clock_out',
+      });
+      setIsClockedIn(false);
+      setClockInTime(null);
+      Alert.alert('Success', 'You have clocked out successfully!');
+    } catch (error) {
+      console.error('Error clocking out:', error);
+      Alert.alert('Error', 'Failed to clock out. Please try again.');
+    }
+  };
+
+  const formatTime = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -27,17 +106,24 @@ const AdminDashboard = ({ navigation }) => {
   const menuItems = [
     {
       icon: UserPlus,
-      title: 'Add Worker',
-      subtitle: 'Create new worker account',
+      title: 'Workers',
+      subtitle: 'View and manage workers',
       color: COLORS.primary,
-      onPress: () => navigation.navigate('AddWorker'),
+      onPress: () => navigation.navigate('WorkersList'),
     },
     {
       icon: Users,
       title: 'Worker Groups',
       subtitle: 'Manage worker teams',
       color: COLORS.secondary,
-      onPress: () => navigation.navigate('WorkerGroupList'),
+      onPress: () => navigation.navigate('WorkerGroupsList'),
+    },
+    {
+      icon: Award,
+      title: 'Designations',
+      subtitle: 'Manage job titles',
+      color: COLORS.warning,
+      onPress: () => navigation.navigate('Designations'),
     },
     {
       icon: Briefcase,
@@ -60,13 +146,6 @@ const AdminDashboard = ({ navigation }) => {
       color: COLORS.primary,
       onPress: () => navigation.navigate('WorkLogsView'),
     },
-    {
-      icon: FolderOpen,
-      title: 'My Profile',
-      subtitle: 'View and update profile',
-      color: COLORS.secondary,
-      onPress: () => navigation.navigate('AdminProfile'),
-    },
   ];
 
   return (
@@ -77,12 +156,56 @@ const AdminDashboard = ({ navigation }) => {
           <Text style={styles.name}>{session?.name || 'Admin'}</Text>
           <Text style={styles.role}>Admin</Text>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <LogOut color={COLORS.danger} size={24} />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('AdminProfile')}
+            style={styles.profileButton}
+          >
+            <UserCircle color={COLORS.primary} size={24} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+            <LogOut color={COLORS.danger} size={24} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Clock In/Out Card - Only show if clock in is required */}
+        {userDetails?.requiresClockIn && (
+          <View style={styles.clockCard}>
+            <View style={styles.clockCardHeader}>
+              <Clock color={isClockedIn ? COLORS.success : COLORS.textLight} size={24} />
+              <View style={styles.clockCardHeaderText}>
+                <Text style={styles.clockCardTitle}>
+                  {isClockedIn ? 'Clocked In' : 'Clock In Required'}
+                </Text>
+                {isClockedIn && clockInTime && (
+                  <Text style={styles.clockCardSubtitle}>
+                    Since {formatTime(clockInTime)}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.clockButton,
+                isClockedIn ? styles.clockOutButton : styles.clockInButton,
+              ]}
+              onPress={isClockedIn ? handleClockOut : handleClockIn}
+              activeOpacity={0.7}
+            >
+              {isClockedIn ? (
+                <ClockOutIcon color={COLORS.white} size={20} />
+              ) : (
+                <ClockInIcon color={COLORS.white} size={20} />
+              )}
+              <Text style={styles.clockButtonText}>
+                {isClockedIn ? 'Clock Out' : 'Clock In'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <Text style={styles.sectionTitle}>Management</Text>
 
         <View style={styles.grid}>
@@ -136,6 +259,14 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginTop: 2,
   },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  profileButton: {
+    padding: 8,
+  },
   logoutButton: {
     padding: 8,
   },
@@ -148,6 +279,52 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.text,
     marginBottom: 16,
+  },
+  clockCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+  },
+  clockCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  clockCardHeaderText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  clockCardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  clockCardSubtitle: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginTop: 2,
+  },
+  clockButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+  },
+  clockInButton: {
+    backgroundColor: COLORS.success,
+  },
+  clockOutButton: {
+    backgroundColor: COLORS.danger,
+  },
+  clockButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
   grid: {
     flexDirection: 'row',

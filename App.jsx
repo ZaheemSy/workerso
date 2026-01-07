@@ -34,6 +34,11 @@ import CreateAdminScreen from './src/screens/CreateAdminScreen';
 import AttendanceRecordsScreen from './src/screens/AttendanceRecordsScreen';
 import WorkLogsViewScreen from './src/screens/WorkLogsViewScreen';
 
+// New Screens - Workers, Groups, and Designations
+import WorkersListScreen from './src/screens/WorkersListScreen';
+import WorkerGroupsListScreen from './src/screens/WorkerGroupsListScreen';
+import DesignationsScreen from './src/screens/DesignationsScreen';
+
 // Profile screens
 import OrganizationProfileScreen from './src/screens/OrganizationProfileScreen';
 import AdminProfileScreen from './src/screens/AdminProfileScreen';
@@ -42,6 +47,10 @@ import WorkerProfileScreen from './src/screens/WorkerProfileScreen';
 // Reports and Settings
 import ReportsScreen from './src/screens/ReportsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+
+// Admin and Worker Management
+import AdminsAndWorkersScreen from './src/screens/AdminsAndWorkersScreen';
+import UserDetailScreen from './src/screens/UserDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -94,10 +103,13 @@ function AppNavigator() {
               <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
 
               {/* Worker Management */}
+              <Stack.Screen name="WorkersList" component={WorkersListScreen} />
               <Stack.Screen name="AddWorker" component={AddWorkerScreen} />
+              <Stack.Screen name="WorkerGroupsList" component={WorkerGroupsListScreen} />
               <Stack.Screen name="WorkerGroupList" component={WorkerGroupListScreen} />
               <Stack.Screen name="WorkerGroupDetail" component={WorkerGroupDetailScreen} />
               <Stack.Screen name="CreateWorkerGroup" component={CreateWorkerGroupScreen} />
+              <Stack.Screen name="Designations" component={DesignationsScreen} />
 
               {/* Project Management */}
               <Stack.Screen name="CreateProject" component={CreateProjectScreen} />
@@ -123,14 +135,19 @@ function AppNavigator() {
             <>
               <Stack.Screen name="SuperAdminDashboard" component={SuperAdminDashboard} />
 
-              {/* Admin Management */}
+              {/* Admin and Worker Management */}
+              <Stack.Screen name="AdminsAndWorkers" component={AdminsAndWorkersScreen} />
+              <Stack.Screen name="UserDetail" component={UserDetailScreen} />
               <Stack.Screen name="CreateAdmin" component={CreateAdminScreen} />
+              <Stack.Screen name="WorkersList" component={WorkersListScreen} />
               <Stack.Screen name="AddWorker" component={AddWorkerScreen} />
 
               {/* Worker Groups */}
+              <Stack.Screen name="WorkerGroupsList" component={WorkerGroupsListScreen} />
               <Stack.Screen name="WorkerGroupList" component={WorkerGroupListScreen} />
               <Stack.Screen name="WorkerGroupDetail" component={WorkerGroupDetailScreen} />
               <Stack.Screen name="CreateWorkerGroup" component={CreateWorkerGroupScreen} />
+              <Stack.Screen name="Designations" component={DesignationsScreen} />
 
               {/* Projects */}
               <Stack.Screen name="CreateProject" component={CreateProjectScreen} />

@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   WORKLOGS: '@workerso_worklogs',
   SESSION: '@workerso_session',
   DEVLOGS: '@workerso_devlogs',
+  DESIGNATIONS: '@workerso_designations',
 };
 
 // Helper function to generate unique IDs
@@ -83,6 +84,11 @@ export const getUsers = async () => {
 export const getUsersByOrg = async (orgId) => {
   const users = await getUsers();
   return users.filter(user => user.orgId === orgId);
+};
+
+export const getUsersByAdmin = async (adminId) => {
+  const users = await getUsers();
+  return users.filter(user => user.adminId === adminId);
 };
 
 export const getUserById = async (userId) => {
@@ -251,6 +257,66 @@ export const createDevLog = async (logData) => {
 
 export const getDevLogs = async () => {
   return (await getItem(STORAGE_KEYS.DEVLOGS)) || [];
+};
+
+// ============================================
+// DESIGNATION SERVICES
+// ============================================
+
+/**
+ * Create designation
+ */
+export const createDesignation = async (designationData) => {
+  const designations = (await getItem(STORAGE_KEYS.DESIGNATIONS)) || [];
+  const designationId = generateId('designation');
+  const newDesignation = {
+    designationId,
+    ...designationData,
+    createdAt: new Date().toISOString(),
+  };
+  designations.push(newDesignation);
+  await setItem(STORAGE_KEYS.DESIGNATIONS, designations);
+  return newDesignation;
+};
+
+/**
+ * Get designations by organization
+ */
+export const getDesignationsByOrg = async (orgId) => {
+  const designations = (await getItem(STORAGE_KEYS.DESIGNATIONS)) || [];
+  return designations.filter(designation => designation.orgId === orgId);
+};
+
+/**
+ * Get designation by ID
+ */
+export const getDesignationById = async (designationId) => {
+  const designations = (await getItem(STORAGE_KEYS.DESIGNATIONS)) || [];
+  return designations.find(designation => designation.designationId === designationId);
+};
+
+/**
+ * Update designation
+ */
+export const updateDesignation = async (designationId, updates) => {
+  const designations = (await getItem(STORAGE_KEYS.DESIGNATIONS)) || [];
+  const index = designations.findIndex(designation => designation.designationId === designationId);
+  if (index !== -1) {
+    designations[index] = { ...designations[index], ...updates, updatedAt: new Date().toISOString() };
+    await setItem(STORAGE_KEYS.DESIGNATIONS, designations);
+    return designations[index];
+  }
+  return null;
+};
+
+/**
+ * Delete designation
+ */
+export const deleteDesignation = async (designationId) => {
+  const designations = (await getItem(STORAGE_KEYS.DESIGNATIONS)) || [];
+  const filtered = designations.filter(designation => designation.designationId !== designationId);
+  await setItem(STORAGE_KEYS.DESIGNATIONS, filtered);
+  return true;
 };
 
 // Clear all data (for development/testing)
