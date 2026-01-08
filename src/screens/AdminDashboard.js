@@ -8,17 +8,12 @@ import {
   Alert,
 } from 'react-native';
 import {
-  Users,
-  Briefcase,
   Camera,
   FileText,
-  UserPlus,
   LogOut,
-  FolderOpen,
   Clock,
   LogIn as ClockInIcon,
   LogOut as ClockOutIcon,
-  Award,
   UserCircle,
   Play,
 } from 'lucide-react-native';
@@ -133,28 +128,28 @@ const AdminDashboard = ({ navigation }) => {
 
   const menuItems = [
     {
-      icon: UserPlus,
+      animation: require('../assets/json/Workers.json'),
       title: 'Workers',
       subtitle: 'View and manage workers',
       color: COLORS.primary,
       onPress: () => navigation.navigate('WorkersList'),
     },
     {
-      icon: Users,
+      animation: require('../assets/json/Worker_Groups.json'),
       title: 'Worker Groups',
       subtitle: 'Manage worker teams',
       color: COLORS.secondary,
       onPress: () => navigation.navigate('WorkerGroupsList'),
     },
     {
-      icon: Award,
+      animation: require('../assets/json/Designations.json'),
       title: 'Designations',
       subtitle: 'Manage job titles',
       color: COLORS.warning,
       onPress: () => navigation.navigate('Designations'),
     },
     {
-      icon: Briefcase,
+      animation: require('../assets/json/Projects.json'),
       title: 'Projects',
       subtitle: 'Create and manage projects',
       color: COLORS.warning,
@@ -282,16 +277,28 @@ const AdminDashboard = ({ navigation }) => {
               onPress={item.onPress}
               activeOpacity={0.7}
             >
-              <View
-                style={[
-                  styles.iconContainer,
-                  { backgroundColor: item.color + '15' },
-                ]}
-              >
-                <item.icon color={item.color} size={28} />
-              </View>
+              {item.animation ? (
+                <LottieView
+                  source={item.animation}
+                  autoPlay
+                  loop
+                  style={[
+                    styles.lottieIcon,
+                    item.title === 'Worker Groups' && styles.workerGroupsLottie,
+                    item.title === 'Projects' && styles.projectsLottie,
+                  ]}
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.iconContainer,
+                    { backgroundColor: item.color + '15' },
+                  ]}
+                >
+                  <item.icon color={item.color} size={28} />
+                </View>
+              )}
               <Text style={styles.menuTitle}>{item.title}</Text>
-              <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -432,12 +439,8 @@ const styles = StyleSheet.create({
   },
   menuItem: {
     width: '48%',
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    alignItems: 'center',
+    marginBottom: 24,
   },
   iconContainer: {
     width: 56,
@@ -445,17 +448,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
+  },
+  lottieIcon: {
+    width: 80,
+    height: 80,
+    marginBottom: 8,
+  },
+  workerGroupsLottie: {
+    transform: [{ scale: 1.5 }],
+  },
+  projectsLottie: {
+    transform: [{ scale: 1.5 }],
   },
   menuTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.text,
-    marginBottom: 4,
-  },
-  menuSubtitle: {
-    fontSize: 12,
-    color: COLORS.textLight,
+    textAlign: 'center',
   },
 });
 
