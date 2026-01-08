@@ -110,7 +110,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         {/* Temporary Button */}
         <TouchableOpacity
           style={styles.temporaryButton}
-          onPress={() => navigation.navigate('TemporarySplash')}
+          onPress={() => navigation.navigate('SupportDevScreen')}
           activeOpacity={0.7}
         >
           <Play color={COLORS.white} size={20} />

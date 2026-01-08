@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Dimensions,
 } from 'react-native';
 import {
   Camera,
@@ -16,6 +17,9 @@ import {
   LogOut as ClockOutIcon,
   UserCircle,
   Play,
+  Activity,
+  Sparkles,
+  Heart,
 } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,6 +29,9 @@ import {
   getAttendanceByUser,
 } from '../services/storageService';
 import LottieView from 'lottie-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width } = Dimensions.get('window');
 
 const AdminDashboard = ({ navigation }) => {
   const { session, logout } = useAuth();
@@ -126,182 +133,242 @@ const AdminDashboard = ({ navigation }) => {
     ]);
   };
 
-  const menuItems = [
-    {
-      animation: require('../assets/json/Workers.json'),
-      title: 'Workers',
-      subtitle: 'View and manage workers',
-      color: COLORS.primary,
-      onPress: () => navigation.navigate('WorkersList'),
-    },
-    {
-      animation: require('../assets/json/Worker_Groups.json'),
-      title: 'Worker Groups',
-      subtitle: 'Manage worker teams',
-      color: COLORS.secondary,
-      onPress: () => navigation.navigate('WorkerGroupsList'),
-    },
-    {
-      animation: require('../assets/json/Designations.json'),
-      title: 'Designations',
-      subtitle: 'Manage job titles',
-      color: COLORS.warning,
-      onPress: () => navigation.navigate('Designations'),
-    },
-    {
-      animation: require('../assets/json/Projects.json'),
-      title: 'Projects',
-      subtitle: 'Create and manage projects',
-      color: COLORS.warning,
-      onPress: () => navigation.navigate('ProjectList'),
-    },
+  const quickActions = [
     {
       icon: Camera,
-      title: 'Attendance Records',
-      subtitle: 'View worker attendance',
-      color: COLORS.darkGray,
+      title: 'Attendance',
+      subtitle: 'Track records',
+      color: '#6366F1',
+      gradient: ['#6366F1', '#8B5CF6'],
       onPress: () => navigation.navigate('AttendanceRecords'),
     },
     {
       icon: FileText,
       title: 'Work Logs',
-      subtitle: 'View daily work hours',
-      color: COLORS.primary,
+      subtitle: 'View activities',
+      color: '#EC4899',
+      gradient: ['#EC4899', '#F43F5E'],
       onPress: () => navigation.navigate('WorkLogsView'),
+    },
+  ];
+
+  const menuItems = [
+    {
+      animation: require('../assets/json/Workers.json'),
+      title: 'Workers',
+      subtitle: 'Manage your team',
+      icon: '👥',
+      color: '#6366F1',
+      bgColor: '#EEF2FF',
+      onPress: () => navigation.navigate('WorkersList'),
+    },
+    {
+      animation: require('../assets/json/Worker_Groups.json'),
+      title: 'Worker Groups',
+      subtitle: 'Team organization',
+      icon: '🔷',
+      color: '#EC4899',
+      bgColor: '#FDF2F8',
+      scale: 1.5,
+      onPress: () => navigation.navigate('WorkerGroupsList'),
+    },
+    {
+      animation: require('../assets/json/Designations.json'),
+      title: 'Designations',
+      subtitle: 'Role management',
+      icon: '🎯',
+      color: '#06B6D4',
+      bgColor: '#ECFEFF',
+      onPress: () => navigation.navigate('Designations'),
+    },
+    {
+      animation: require('../assets/json/Projects.json'),
+      title: 'Projects',
+      subtitle: 'Track work progress',
+      icon: '📋',
+      color: '#10B981',
+      bgColor: '#ECFDF5',
+      scale: 1.5,
+      onPress: () => navigation.navigate('ProjectList'),
     },
   ];
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View>
-            <Text style={styles.greeting}>Hello,</Text>
-            <Text style={styles.name}>{session?.name || 'Admin'}</Text>
-            <Text style={styles.role}>Admin</Text>
-          </View>
-        </View>
+      {/* Hero Card Header */}
+      <View style={styles.heroSection}>
+        <View style={styles.heroCard}>
+          <View style={styles.heroTop}>
+            <View style={styles.heroLeft}>
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarInitial}>
+                  {session?.name?.charAt(0)?.toUpperCase() || 'A'}
+                </Text>
+              </View>
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>{session?.name || 'Admin'}</Text>
+                <View style={styles.adminBadge}>
+                  <Sparkles color="#F59E0B" size={11} />
+                  <Text style={styles.adminText}>Administrator</Text>
+                </View>
+              </View>
+            </View>
 
-        <View>
-          <View style={styles.headerButtons}>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('AdminProfile')}
-              style={styles.profileButton}
-            >
-              <UserCircle color={COLORS.primary} size={24} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleLogout}
-              style={styles.logoutButton}
-            >
-              <LogOut color={COLORS.danger} size={24} />
-            </TouchableOpacity>
+            <View style={styles.heroRight}>
+              <View style={styles.orbitContainer}>
+                <LottieView
+                  source={require('../assets/json/Planet_Orbit.json')}
+                  autoPlay
+                  loop
+                  speed={0.3}
+                  style={styles.orbitLottie}
+                />
+              </View>
+            </View>
           </View>
 
-          <View style={styles.headerButtons}>
-            <View style={{}}>
-              <LottieView
-                source={require('../assets/json/Planet_Orbit.json')}
-                autoPlay
-                loop
-                speed={0.2}
-                style={{
-                  width: 50,
-                  height: 50,
-                  transform: [{ scale: 2 }], // Adjust scale value as needed
-                }}
-                resizeMode="cover"
-              />
+          {/* Bottom Actions Row */}
+          <View style={styles.heroBottom}>
+            <TouchableOpacity
+              style={styles.supportBadge}
+              onPress={() => navigation.navigate('SupportDevScreen')}
+              activeOpacity={0.8}
+            >
+              <Heart color="#EC4899" size={14} fill="#EC4899" />
+              <Text style={styles.supportText}>Support Dev</Text>
+            </TouchableOpacity>
+
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('AdminProfile')}
+                style={styles.iconButton}
+              >
+                <UserCircle color="#6366F1" size={20} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleLogout}
+                style={[styles.iconButton, styles.logoutButton]}
+              >
+                <LogOut color="#EF4444" size={20} />
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Temporary Button */}
-        <TouchableOpacity
-          style={styles.temporaryButton}
-          onPress={() => navigation.navigate('TemporarySplash')}
-          activeOpacity={0.7}
-        >
-          <Play color={COLORS.white} size={20} />
-          <Text style={styles.temporaryButtonText}>Temporary</Text>
-        </TouchableOpacity>
-
-        {/* Clock In/Out Card - Only show if clock in is required */}
+      <ScrollView
+        style={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContentContainer}
+      >
+        {/* Clock In/Out Section */}
         {userDetails?.requiresClockIn && (
-          <View style={styles.clockCard}>
-            <View style={styles.clockCardHeader}>
-              <Clock
-                color={isClockedIn ? COLORS.success : COLORS.textLight}
-                size={24}
-              />
-              <View style={styles.clockCardHeaderText}>
-                <Text style={styles.clockCardTitle}>
-                  {isClockedIn ? 'Clocked In' : 'Clock In Required'}
-                </Text>
-                {isClockedIn && clockInTime && (
-                  <Text style={styles.clockCardSubtitle}>
-                    Since {formatTime(clockInTime)}
-                  </Text>
-                )}
-              </View>
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.clockButton,
-                isClockedIn ? styles.clockOutButton : styles.clockInButton,
-              ]}
-              onPress={isClockedIn ? handleClockOut : handleClockIn}
-              activeOpacity={0.7}
+          <View style={styles.clockContainer}>
+            <View
+              style={[styles.clockCard, isClockedIn && styles.clockCardActive]}
             >
-              {isClockedIn ? (
-                <ClockOutIcon color={COLORS.white} size={20} />
-              ) : (
-                <ClockInIcon color={COLORS.white} size={20} />
-              )}
-              <Text style={styles.clockButtonText}>
-                {isClockedIn ? 'Clock Out' : 'Clock In'}
-              </Text>
-            </TouchableOpacity>
+              <View style={styles.clockLeft}>
+                <View style={styles.clockIconContainer}>
+                  <Clock
+                    color={isClockedIn ? '#10B981' : '#6B7280'}
+                    size={24}
+                  />
+                </View>
+                <View>
+                  <Text style={styles.clockStatus}>
+                    {isClockedIn ? 'Active Now' : 'Not Clocked In'}
+                  </Text>
+                  {isClockedIn && clockInTime && (
+                    <Text style={styles.clockSince}>
+                      Since {formatTime(clockInTime)}
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.clockBtn,
+                  isClockedIn ? styles.clockBtnOut : styles.clockBtnIn,
+                ]}
+                onPress={isClockedIn ? handleClockOut : handleClockIn}
+                activeOpacity={0.8}
+              >
+                {isClockedIn ? (
+                  <ClockOutIcon color="#FFF" size={18} />
+                ) : (
+                  <ClockInIcon color="#FFF" size={18} />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>Management</Text>
-
-        <View style={styles.grid}>
-          {menuItems.map((item, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.menuItem}
-              onPress={item.onPress}
-              activeOpacity={0.7}
-            >
-              {item.animation ? (
-                <LottieView
-                  source={item.animation}
-                  autoPlay
-                  loop
-                  style={[
-                    styles.lottieIcon,
-                    item.title === 'Worker Groups' && styles.workerGroupsLottie,
-                    item.title === 'Projects' && styles.projectsLottie,
-                  ]}
-                />
-              ) : (
+        {/* Quick Actions Grid */}
+        <View style={styles.quickSection}>
+          <Text style={styles.sectionLabel}>Quick Access</Text>
+          <View style={styles.quickGrid}>
+            {quickActions.map((action, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.quickCard}
+                onPress={action.onPress}
+                activeOpacity={0.85}
+              >
                 <View
                   style={[
-                    styles.iconContainer,
-                    { backgroundColor: item.color + '15' },
+                    styles.quickIconBox,
+                    { backgroundColor: `${action.color}15` },
                   ]}
                 >
-                  <item.icon color={item.color} size={28} />
+                  <action.icon color={action.color} size={22} />
                 </View>
-              )}
-              <Text style={styles.menuTitle}>{item.title}</Text>
-            </TouchableOpacity>
-          ))}
+                <View style={styles.quickTextContainer}>
+                  <Text style={styles.quickTitle}>{action.title}</Text>
+                  <Text style={styles.quickSubtitle}>{action.subtitle}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
+
+        {/* Management Grid */}
+        <View style={styles.managementSection}>
+          <Text style={styles.sectionLabel}>Management</Text>
+          <View style={styles.managementGrid}>
+            {menuItems.map((item, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.managementCard}
+                onPress={item.onPress}
+                activeOpacity={0.85}
+              >
+                <View
+                  style={[
+                    styles.managementIconBox,
+                    { backgroundColor: item.bgColor },
+                  ]}
+                >
+                  <LottieView
+                    source={item.animation}
+                    autoPlay
+                    loop
+                    style={[
+                      styles.managementLottie,
+                      item.scale && { transform: [{ scale: item.scale }] },
+                    ]}
+                  />
+                </View>
+                <View style={styles.managementInfo}>
+                  <Text style={styles.managementTitle}>{item.title}</Text>
+                  <Text style={styles.managementSubtitle}>{item.subtitle}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -310,162 +377,291 @@ const AdminDashboard = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F9FAFB',
   },
-  header: {
-    backgroundColor: COLORS.white,
-    padding: 24,
-    paddingTop: 48,
+  heroSection: {
+    backgroundColor: '#FFFFFF',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  heroCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  heroTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
-  },
-  headerAnimation: {
-    width: 50,
-    height: 50,
-    marginBottom: -5,
-  },
-  greeting: {
-    fontSize: 16,
-    color: COLORS.textLight,
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginTop: 4,
-  },
-  role: {
-    fontSize: 14,
-    color: COLORS.primary,
-    marginTop: 2,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    alignSelf: 'flex-end',
-  },
-  profileButton: {
-    padding: 8,
-  },
-  logoutButton: {
-    padding: 8,
-  },
-  content: {
-    flex: 1,
-    padding: 24,
-  },
-  temporaryButton: {
-    backgroundColor: COLORS.secondary,
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: COLORS.secondary,
-  },
-  temporaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.white,
-    marginLeft: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text,
     marginBottom: 16,
   },
-  clockCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-  },
-  clockCardHeader: {
+  heroLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  clockCardHeaderText: {
-    marginLeft: 12,
+    gap: 14,
     flex: 1,
   },
-  clockCardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  clockCardSubtitle: {
-    fontSize: 14,
-    color: COLORS.textLight,
-    marginTop: 2,
-  },
-  clockButton: {
-    flexDirection: 'row',
+  heroRight: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
   },
-  clockInButton: {
-    backgroundColor: COLORS.success,
-  },
-  clockOutButton: {
-    backgroundColor: COLORS.danger,
-  },
-  clockButtonText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  menuItem: {
-    width: '48%',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  iconContainer: {
+  avatarCircle: {
     width: 56,
     height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6366F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#EEF2FF',
+  },
+  avatarInitial: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  userInfo: {
+    gap: 3,
+  },
+  greeting: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  userName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  adminBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  adminText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#D97706',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  orbitContainer: {
+    width: 70,
+    height: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -10,
+  },
+  orbitLottie: {
+    width: 80,
+    height: 80,
+  },
+  heroBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  supportBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FDF2F8',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FBCFE8',
+  },
+  supportText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#EC4899',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutButton: {
+    backgroundColor: '#FEE2E2',
+  },
+  scrollContent: {
+    flex: 1,
+  },
+  scrollContentContainer: {
+    padding: 20,
+  },
+  clockContainer: {
+    marginBottom: 24,
+  },
+  clockCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  clockCardActive: {
+    borderColor: '#10B981',
+    backgroundColor: '#ECFDF5',
+  },
+  clockLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  clockIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clockStatus: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  clockSince: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  clockBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clockBtnIn: {
+    backgroundColor: '#10B981',
+  },
+  clockBtnOut: {
+    backgroundColor: '#EF4444',
+  },
+  quickSection: {
+    marginBottom: 28,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 14,
+  },
+  quickGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  quickCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  quickIconBox: {
+    width: 42,
+    height: 42,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
   },
-  lottieIcon: {
-    width: 80,
-    height: 80,
-    marginBottom: 8,
+  quickTextContainer: {
+    flex: 1,
   },
-  workerGroupsLottie: {
-    transform: [{ scale: 1.5 }],
-  },
-  projectsLottie: {
-    transform: [{ scale: 1.5 }],
-  },
-  menuTitle: {
+  quickTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.text,
-    textAlign: 'center',
+    color: '#111827',
+  },
+  quickSubtitle: {
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  managementSection: {
+    marginBottom: 24,
+  },
+  managementGrid: {
+    gap: 12,
+  },
+  managementCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  managementIconBox: {
+    width: 70,
+    height: 70,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  managementLottie: {
+    width: 60,
+    height: 60,
+  },
+  managementInfo: {
+    flex: 1,
+  },
+  managementTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 3,
+  },
+  managementSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
   },
 });
 
