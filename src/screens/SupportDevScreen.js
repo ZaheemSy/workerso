@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  Dimensions,
 } from 'react-native';
 import {
   Heart,
@@ -19,8 +18,6 @@ import {
   ArrowLeft,
 } from 'lucide-react-native';
 import LottieView from 'lottie-react-native';
-
-const { width } = Dimensions.get('window');
 
 const SupportDevScreen = ({ navigation }) => {
   const [selectedAmount, setSelectedAmount] = useState(null);
@@ -126,6 +123,15 @@ const SupportDevScreen = ({ navigation }) => {
       bgColor: '#FEF2F2',
       description: 'Legendary support! 🎖️',
     },
+    {
+      id: 'tip_2000',
+      amount: 2000,
+      label: 'Epic',
+      icon: Zap,
+      color: '#7C3AED',
+      bgColor: '#F5F3FF',
+      description: 'Epic generosity! 🔥',
+    },
   ];
 
   // This function will handle the billing flow once Google Play Billing is integrated
@@ -179,7 +185,7 @@ const SupportDevScreen = ({ navigation }) => {
         <View style={styles.heroSection}>
           <View style={styles.lottieContainer}>
             <LottieView
-              source={require('../assets/json/Planet_Orbit.json')}
+              source={require('../assets/json/Thanks_alot.json')}
               autoPlay
               loop
               speed={0.3}
@@ -190,6 +196,25 @@ const SupportDevScreen = ({ navigation }) => {
           <Text style={styles.heroSubtitle}>
             Your support helps keep this app free and actively developed. Every
             contribution is deeply appreciated! 💙
+          </Text>
+        </View>
+
+        {/* Developer Introduction */}
+        <View style={styles.developerCard}>
+          <Text style={styles.developerIntro}>
+            Hi, I am Zaheem, the developer of this app. 👋
+          </Text>
+          <Text style={styles.developerMessage}>
+            I built Workerso to help businesses manage their workforce
+            efficiently. This app is completely free to use, with no hidden fees
+            or subscriptions. I'm passionate about creating tools that make a
+            real difference in people's work lives.
+            {'\n\n'}
+            Your support means the world to me! It helps cover development
+            costs, allows me to add new features, and keeps me motivated to make
+            Workerso even better. Whether it's a coffee or a generous tip, every
+            contribution is deeply appreciated and goes directly into improving
+            this app for you. 💙
           </Text>
         </View>
 
@@ -286,12 +311,12 @@ const SupportDevScreen = ({ navigation }) => {
           <Text style={styles.devNoteTitle}>🔧 Developer Note</Text>
           <Text style={styles.devNoteText}>
             Ready for Phase 1 Integration:{'\n'}• Product IDs configured: tip_10
-            through tip_1000{'\n'}• Consumable purchase flow prepared{'\n'}•
+            through tip_2000{'\n'}• Consumable purchase flow prepared{'\n'}•
             UPI/Google Pay compatible{'\n'}• Add BillingManager class in Phase 1
           </Text>
         </View>
 
-        <View style={{ height: 40 }} />
+        <View style={styles.bottomSpacer} />
       </ScrollView>
     </View>
   );
@@ -342,11 +367,12 @@ const styles = StyleSheet.create({
   lottieContainer: {
     width: 120,
     height: 120,
-    marginBottom: 16,
+    marginBottom: 40,
   },
   heroLottie: {
     width: '100%',
     height: '100%',
+    transform: [{ scale: 2 }],
   },
   heroTitle: {
     fontSize: 28,
@@ -361,6 +387,32 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     paddingHorizontal: 20,
+  },
+  developerCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: '#6366F1',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  developerIntro: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  developerMessage: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 22,
+    textAlign: 'center',
   },
   infoCard: {
     flexDirection: 'row',
@@ -401,14 +453,14 @@ const styles = StyleSheet.create({
   tipGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
     marginBottom: 32,
   },
   tipCard: {
-    width: (width - 52) / 3,
+    width: '31%',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 16,
+    padding: 12,
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#E5E7EB',
@@ -417,6 +469,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+    marginBottom: 12,
   },
   tipCardSelected: {
     borderWidth: 3,
@@ -496,6 +549,9 @@ const styles = StyleSheet.create({
     color: '#4338CA',
     lineHeight: 18,
     fontFamily: 'monospace',
+  },
+  bottomSpacer: {
+    height: 40,
   },
 });
 
