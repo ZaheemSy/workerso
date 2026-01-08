@@ -9,7 +9,7 @@ import {
   FlatList,
   Modal,
 } from 'react-native';
-import { X, Plus, Briefcase, Trash2 } from 'lucide-react-native';
+import { X, Plus, Briefcase, Trash2, Search } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -21,6 +21,7 @@ import {
 const DesignationsScreen = ({ navigation }) => {
   const { session } = useAuth();
   const [designations, setDesignations] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newDesignation, setNewDesignation] = useState('');
   const [loading, setLoading] = useState(false);
@@ -88,6 +89,12 @@ const DesignationsScreen = ({ navigation }) => {
     );
   };
 
+  const filteredDesignations = designations.filter((designation) => {
+    const query = searchQuery.toLowerCase();
+    const name = designation.name?.toLowerCase() || '';
+    return name.includes(query);
+  });
+
   const renderDesignation = ({ item }) => (
     <View style={styles.designationCard}>
       <View style={styles.designationIconContainer}>
@@ -119,6 +126,23 @@ const DesignationsScreen = ({ navigation }) => {
       </View>
 
       <View style={styles.content}>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Search color={COLORS.gray} size={20} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search designations..."
+            placeholderTextColor={COLORS.gray}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <X color={COLORS.gray} size={20} />
+            </TouchableOpacity>
+          )}
+        </View>
+
         {designations.length === 0 ? (
           <View style={styles.emptyState}>
             <Briefcase color={COLORS.gray} size={64} />
@@ -127,9 +151,17 @@ const DesignationsScreen = ({ navigation }) => {
               Create designations to assign to workers
             </Text>
           </View>
+        ) : filteredDesignations.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Search color={COLORS.gray} size={64} />
+            <Text style={styles.emptyText}>No results found</Text>
+            <Text style={styles.emptySubtext}>
+              Try searching with different keywords
+            </Text>
+          </View>
         ) : (
           <FlatList
-            data={designations}
+            data={filteredDesignations}
             keyExtractor={(item) => item.designationId}
             renderItem={renderDesignation}
             showsVerticalScrollIndicator={false}
@@ -215,6 +247,25 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    height: 50,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
   },
   emptyState: {
     flex: 1,

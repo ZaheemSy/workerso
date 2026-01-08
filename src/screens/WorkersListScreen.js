@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { X, Plus, User, Mail, Phone, Lock, UserPlus, Briefcase, Circle } from 'lucide-react-native';
+import { X, Plus, User, Mail, Phone, Lock, UserPlus, Briefcase, Circle, Search } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,12 +26,13 @@ import {
 const WorkersListScreen = ({ navigation }) => {
   const { session } = useAuth();
   const [workers, setWorkers] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [designations, setDesignations] = useState([]);
   const [selectedDesignationId, setSelectedDesignationId] = useState(null);
   const [showNewDesignationInput, setShowNewDesignationInput] = useState(false);
   const [newDesignationName, setNewDesignationName] = useState('');
-  
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -193,6 +194,15 @@ const WorkersListScreen = ({ navigation }) => {
     return designation ? designation.name : 'Not Assigned';
   };
 
+  const filteredWorkers = workers.filter((worker) => {
+    const query = searchQuery.toLowerCase();
+    const name = worker.name?.toLowerCase() || '';
+    const username = worker.username?.toLowerCase() || '';
+    const designation = getDesignationName(worker.designationId).toLowerCase();
+
+    return name.includes(query) || username.includes(query) || designation.includes(query);
+  });
+
   const renderWorker = ({ item }) => (
     <TouchableOpacity
       style={styles.workerCard}
@@ -226,6 +236,23 @@ const WorkersListScreen = ({ navigation }) => {
       </View>
 
       <View style={styles.content}>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Search color={COLORS.gray} size={20} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search workers by name, username or designation..."
+            placeholderTextColor={COLORS.gray}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <X color={COLORS.gray} size={20} />
+            </TouchableOpacity>
+          )}
+        </View>
+
         {workers.length === 0 ? (
           <View style={styles.emptyState}>
             <User color={COLORS.gray} size={64} />
@@ -234,9 +261,17 @@ const WorkersListScreen = ({ navigation }) => {
               Add workers to get started
             </Text>
           </View>
+        ) : filteredWorkers.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Search color={COLORS.gray} size={64} />
+            <Text style={styles.emptyText}>No results found</Text>
+            <Text style={styles.emptySubtext}>
+              Try searching with different keywords
+            </Text>
+          </View>
         ) : (
           <FlatList
-            data={workers}
+            data={filteredWorkers}
             keyExtractor={(item) => item.userId}
             renderItem={renderWorker}
             showsVerticalScrollIndicator={false}
@@ -472,6 +507,25 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    height: 50,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
   },
   emptyState: {
     flex: 1,

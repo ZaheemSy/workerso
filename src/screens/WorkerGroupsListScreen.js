@@ -10,7 +10,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
-import { X, Plus, Users, Save, Check, ChevronRight, Trash2 } from 'lucide-react-native';
+import { X, Plus, Users, Save, Check, ChevronRight, Trash2, Search } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
@@ -23,6 +23,7 @@ import {
 const WorkerGroupsListScreen = ({ navigation }) => {
   const { session } = useAuth();
   const [groups, setGroups] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [workers, setWorkers] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -112,6 +113,12 @@ const WorkerGroupsListScreen = ({ navigation }) => {
     }
   };
 
+  const filteredGroups = groups.filter((group) => {
+    const query = searchQuery.toLowerCase();
+    const groupName = group.groupName?.toLowerCase() || '';
+    return groupName.includes(query);
+  });
+
   const renderGroup = ({ item }) => (
     <TouchableOpacity
       style={styles.groupCard}
@@ -179,6 +186,23 @@ const WorkerGroupsListScreen = ({ navigation }) => {
       </View>
 
       <View style={styles.content}>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Search color={COLORS.gray} size={20} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search worker groups..."
+            placeholderTextColor={COLORS.gray}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <X color={COLORS.gray} size={20} />
+            </TouchableOpacity>
+          )}
+        </View>
+
         {groups.length === 0 ? (
           <View style={styles.emptyState}>
             <Users color={COLORS.gray} size={64} />
@@ -187,9 +211,17 @@ const WorkerGroupsListScreen = ({ navigation }) => {
               Create groups to organize workers by teams or skills
             </Text>
           </View>
+        ) : filteredGroups.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Search color={COLORS.gray} size={64} />
+            <Text style={styles.emptyText}>No results found</Text>
+            <Text style={styles.emptySubtext}>
+              Try searching with different keywords
+            </Text>
+          </View>
         ) : (
           <FlatList
-            data={groups}
+            data={filteredGroups}
             keyExtractor={(item) => item.groupId}
             renderItem={renderGroup}
             showsVerticalScrollIndicator={false}
@@ -306,6 +338,25 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    height: 50,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
   },
   emptyState: {
     flex: 1,

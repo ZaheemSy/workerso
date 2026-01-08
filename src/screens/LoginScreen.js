@@ -10,7 +10,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { LogIn, User, Lock, Briefcase } from 'lucide-react-native';
+import { LogIn, User, Lock, Briefcase, Eye, EyeOff } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -18,6 +18,7 @@ const LoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
 
   const handleLogin = async () => {
@@ -71,9 +72,16 @@ const LoginScreen = ({ navigation }) => {
               placeholderTextColor={COLORS.gray}
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
+              secureTextEntry={!showPassword}
               autoCapitalize="none"
             />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              {showPassword ? (
+                <EyeOff color={COLORS.gray} size={20} />
+              ) : (
+                <Eye color={COLORS.gray} size={20} />
+              )}
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity

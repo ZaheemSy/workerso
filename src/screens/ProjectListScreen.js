@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { Briefcase, Plus, X, ChevronRight, Users, Calendar } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
+import { Briefcase, Plus, X, ChevronRight, Users, Calendar, Search } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
 import { getProjectsByOrg } from '../services/storageService';
@@ -8,6 +8,7 @@ import { getProjectsByOrg } from '../services/storageService';
 const ProjectListScreen = ({ navigation }) => {
   const { session } = useAuth();
   const [projects, setProjects] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,6 +28,13 @@ const ProjectListScreen = ({ navigation }) => {
     }
   };
 
+  const filteredProjects = projects.filter((project) => {
+    const query = searchQuery.toLowerCase();
+    const name = project.projectName?.toLowerCase() || '';
+    const description = project.description?.toLowerCase() || '';
+    return name.includes(query) || description.includes(query);
+  });
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -43,6 +51,23 @@ const ProjectListScreen = ({ navigation }) => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Search color={COLORS.gray} size={20} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search projects by name or description..."
+            placeholderTextColor={COLORS.gray}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <X color={COLORS.gray} size={20} />
+            </TouchableOpacity>
+          )}
+        </View>
+
         {projects.length === 0 ? (
           <View style={styles.emptyState}>
             <Briefcase color={COLORS.gray} size={64} />
@@ -56,8 +81,14 @@ const ProjectListScreen = ({ navigation }) => {
               <Text style={styles.emptyButtonText}>Create Project</Text>
             </TouchableOpacity>
           </View>
+        ) : filteredProjects.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Search color={COLORS.gray} size={64} />
+            <Text style={styles.emptyTitle}>No results found</Text>
+            <Text style={styles.emptyText}>Try searching with different keywords</Text>
+          </View>
         ) : (
-          projects.map((project) => (
+          filteredProjects.map((project) => (
             <TouchableOpacity
               key={project.projectId}
               style={styles.projectCard}
@@ -126,6 +157,25 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 24,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    height: 50,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
   },
   projectCard: {
     backgroundColor: COLORS.white,

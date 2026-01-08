@@ -1,9 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { Users, Briefcase, Camera, FileText, UserPlus, LogOut, FolderOpen, Clock, LogIn as ClockInIcon, LogOut as ClockOutIcon, Award, UserCircle, Play } from 'lucide-react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+} from 'react-native';
+import {
+  Users,
+  Briefcase,
+  Camera,
+  FileText,
+  UserPlus,
+  LogOut,
+  FolderOpen,
+  Clock,
+  LogIn as ClockInIcon,
+  LogOut as ClockOutIcon,
+  Award,
+  UserCircle,
+  Play,
+} from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserById, createAttendance, getAttendanceByUser } from '../services/storageService';
+import {
+  getUserById,
+  createAttendance,
+  getAttendanceByUser,
+} from '../services/storageService';
+import LottieView from 'lottie-react-native';
 
 const AdminDashboard = ({ navigation }) => {
   const { session, logout } = useAuth();
@@ -32,7 +58,10 @@ const AdminDashboard = ({ navigation }) => {
 
       if (todayAttendance && todayAttendance.length > 0) {
         const latestAttendance = todayAttendance[todayAttendance.length - 1];
-        if (latestAttendance.type === 'clock_in' && !latestAttendance.clockOutTime) {
+        if (
+          latestAttendance.type === 'clock_in' &&
+          !latestAttendance.clockOutTime
+        ) {
           setIsClockedIn(true);
           setClockInTime(latestAttendance.clockInTime);
         }
@@ -80,27 +109,26 @@ const AdminDashboard = ({ navigation }) => {
     }
   };
 
-  const formatTime = (isoString) => {
+  const formatTime = isoString => {
     if (!isoString) return '';
     const date = new Date(isoString);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-          },
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const menuItems = [
@@ -158,16 +186,39 @@ const AdminDashboard = ({ navigation }) => {
             <Text style={styles.role}>Admin</Text>
           </View>
         </View>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('AdminProfile')}
-            style={styles.profileButton}
-          >
-            <UserCircle color={COLORS.primary} size={24} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-            <LogOut color={COLORS.danger} size={24} />
-          </TouchableOpacity>
+
+        <View>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('AdminProfile')}
+              style={styles.profileButton}
+            >
+              <UserCircle color={COLORS.primary} size={24} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleLogout}
+              style={styles.logoutButton}
+            >
+              <LogOut color={COLORS.danger} size={24} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.headerButtons}>
+            <View style={{}}>
+              <LottieView
+                source={require('../assets/json/Planet_Orbit.json')}
+                autoPlay
+                loop
+                speed={0.2}
+                style={{
+                  width: 50,
+                  height: 50,
+                  transform: [{ scale: 2 }], // Adjust scale value as needed
+                }}
+                resizeMode="cover"
+              />
+            </View>
+          </View>
         </View>
       </View>
 
@@ -186,7 +237,10 @@ const AdminDashboard = ({ navigation }) => {
         {userDetails?.requiresClockIn && (
           <View style={styles.clockCard}>
             <View style={styles.clockCardHeader}>
-              <Clock color={isClockedIn ? COLORS.success : COLORS.textLight} size={24} />
+              <Clock
+                color={isClockedIn ? COLORS.success : COLORS.textLight}
+                size={24}
+              />
               <View style={styles.clockCardHeaderText}>
                 <Text style={styles.clockCardTitle}>
                   {isClockedIn ? 'Clocked In' : 'Clock In Required'}
@@ -228,7 +282,12 @@ const AdminDashboard = ({ navigation }) => {
               onPress={item.onPress}
               activeOpacity={0.7}
             >
-              <View style={[styles.iconContainer, { backgroundColor: item.color + '15' }]}>
+              <View
+                style={[
+                  styles.iconContainer,
+                  { backgroundColor: item.color + '15' },
+                ]}
+              >
                 <item.icon color={item.color} size={28} />
               </View>
               <Text style={styles.menuTitle}>{item.title}</Text>
@@ -285,6 +344,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    alignSelf: 'flex-end',
   },
   profileButton: {
     padding: 8,

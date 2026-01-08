@@ -10,7 +10,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { Building2, User, Mail, Phone, Lock, UserPlus } from 'lucide-react-native';
+import { Building2, User, Mail, Phone, Lock, UserPlus, Eye, EyeOff } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { createOrganization, createUser } from '../services/storageService';
@@ -26,6 +26,8 @@ const SignupScreen = ({ navigation }) => {
     confirmPassword: '',
   });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -199,9 +201,16 @@ const SignupScreen = ({ navigation }) => {
               placeholderTextColor={COLORS.gray}
               value={formData.password}
               onChangeText={value => handleChange('password', value)}
-              secureTextEntry
+              secureTextEntry={!showPassword}
               autoCapitalize="none"
             />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              {showPassword ? (
+                <EyeOff color={COLORS.gray} size={20} />
+              ) : (
+                <Eye color={COLORS.gray} size={20} />
+              )}
+            </TouchableOpacity>
           </View>
 
           <View style={styles.inputContainer}>
@@ -212,9 +221,16 @@ const SignupScreen = ({ navigation }) => {
               placeholderTextColor={COLORS.gray}
               value={formData.confirmPassword}
               onChangeText={value => handleChange('confirmPassword', value)}
-              secureTextEntry
+              secureTextEntry={!showConfirmPassword}
               autoCapitalize="none"
             />
+            <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+              {showConfirmPassword ? (
+                <EyeOff color={COLORS.gray} size={20} />
+              ) : (
+                <Eye color={COLORS.gray} size={20} />
+              )}
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity

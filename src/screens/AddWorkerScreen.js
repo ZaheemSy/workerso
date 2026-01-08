@@ -10,7 +10,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { User, Mail, Phone, Lock, UserPlus, X, ShieldCheck, Circle, Award, Check } from 'lucide-react-native';
+import { User, Mail, Phone, Lock, UserPlus, X, ShieldCheck, Circle, Award, Check, Eye, EyeOff } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,6 +38,8 @@ const AddWorkerScreen = ({ navigation }) => {
   const [selectedDesignationId, setSelectedDesignationId] = useState(null);
   const [showNewDesignationInput, setShowNewDesignationInput] = useState(false);
   const [newDesignationName, setNewDesignationName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     loadDesignations();
@@ -425,9 +427,16 @@ const AddWorkerScreen = ({ navigation }) => {
             placeholderTextColor={COLORS.gray}
             value={formData.password}
             onChangeText={value => handleChange('password', value)}
-            secureTextEntry
+            secureTextEntry={!showPassword}
             autoCapitalize="none"
           />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+            {showPassword ? (
+              <EyeOff color={COLORS.gray} size={20} />
+            ) : (
+              <Eye color={COLORS.gray} size={20} />
+            )}
+          </TouchableOpacity>
         </View>
 
         <View style={styles.inputContainer}>
@@ -438,9 +447,16 @@ const AddWorkerScreen = ({ navigation }) => {
             placeholderTextColor={COLORS.gray}
             value={formData.confirmPassword}
             onChangeText={value => handleChange('confirmPassword', value)}
-            secureTextEntry
+            secureTextEntry={!showConfirmPassword}
             autoCapitalize="none"
           />
+          <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+            {showConfirmPassword ? (
+              <EyeOff color={COLORS.gray} size={20} />
+            ) : (
+              <Eye color={COLORS.gray} size={20} />
+            )}
+          </TouchableOpacity>
         </View>
 
         <TouchableOpacity
