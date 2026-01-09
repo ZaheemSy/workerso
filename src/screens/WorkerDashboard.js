@@ -27,11 +27,13 @@ import {
   getUserById,
   createAttendance,
   getAttendanceByUser,
+  getDesignationById,
 } from '../services/storageService';
 
 const WorkerDashboard = ({ navigation }) => {
   const { session, logout } = useAuth();
   const [userDetails, setUserDetails] = useState(null);
+  const [designationName, setDesignationName] = useState('');
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [clockInTime, setClockInTime] = useState(null);
 
@@ -43,7 +45,17 @@ const WorkerDashboard = ({ navigation }) => {
   const loadUserDetails = async () => {
     try {
       const user = await getUserById(session.userId);
+      console.log('User details loaded:', user);
       setUserDetails(user);
+
+      // Fetch designation name if user has a designationId
+      if (user?.designationId) {
+        const designation = await getDesignationById(user.designationId);
+        console.log('Designation loaded:', designation);
+        if (designation) {
+          setDesignationName(designation.name);
+        }
+      }
     } catch (error) {
       console.error('Error loading user details:', error);
     }
@@ -181,10 +193,10 @@ const WorkerDashboard = ({ navigation }) => {
                     <Briefcase color="#059669" size={11} fill="#059669" />
                     <Text style={styles.workerText}>Worker</Text>
                   </View>
-                  {userDetails?.designation && (
+                  {designationName && (
                     <View style={styles.designationBadge}>
                       <Text style={styles.designationText}>
-                        {userDetails.designation}
+                        {designationName}
                       </Text>
                     </View>
                   )}
