@@ -1,9 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { Camera, Clock, User, LogOut, Briefcase, LogIn as ClockInIcon, LogOut as ClockOutIcon, UserCircle, Play } from 'lucide-react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+} from 'react-native';
+import {
+  Camera,
+  Clock,
+  User,
+  LogOut,
+  Briefcase,
+  LogIn as ClockInIcon,
+  LogOut as ClockOutIcon,
+  UserCircle,
+  Heart,
+  Shield,
+  Activity,
+} from 'lucide-react-native';
+import LottieView from 'lottie-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserById, createAttendance, getAttendanceByUser } from '../services/storageService';
+import {
+  getUserById,
+  createAttendance,
+  getAttendanceByUser,
+} from '../services/storageService';
 
 const WorkerDashboard = ({ navigation }) => {
   const { session, logout } = useAuth();
@@ -32,7 +56,10 @@ const WorkerDashboard = ({ navigation }) => {
 
       if (todayAttendance && todayAttendance.length > 0) {
         const latestAttendance = todayAttendance[todayAttendance.length - 1];
-        if (latestAttendance.type === 'clock_in' && !latestAttendance.clockOutTime) {
+        if (
+          latestAttendance.type === 'clock_in' &&
+          !latestAttendance.clockOutTime
+        ) {
           setIsClockedIn(true);
           setClockInTime(latestAttendance.clockInTime);
         }
@@ -80,27 +107,26 @@ const WorkerDashboard = ({ navigation }) => {
     }
   };
 
-  const formatTime = (isoString) => {
+  const formatTime = isoString => {
     if (!isoString) return '';
     const date = new Date(isoString);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-          },
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const menuItems = [
@@ -125,47 +151,99 @@ const WorkerDashboard = ({ navigation }) => {
       color: COLORS.warning,
       onPress: () => navigation.navigate('ProjectList'),
     },
+    {
+      icon: Activity,
+      title: 'Recent Activities',
+      subtitle: 'View your activity history',
+      color: COLORS.success,
+      onPress: () => navigation.navigate('RecentActivities'),
+    },
   ];
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View>
-            <Text style={styles.greeting}>Hello,</Text>
-            <Text style={styles.name}>{session?.name || 'Worker'}</Text>
-            <Text style={styles.role}>Worker</Text>
+      {/* Hero Card Header */}
+      <View style={styles.heroSection}>
+        <View style={styles.heroCard}>
+          <View style={styles.heroTop}>
+            <View style={styles.heroLeft}>
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarInitial}>
+                  {session?.name?.charAt(0)?.toUpperCase() || 'W'}
+                </Text>
+              </View>
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>
+                  {session?.name || 'Worker'}
+                </Text>
+                <View style={styles.badgeRow}>
+                  <View style={styles.workerBadge}>
+                    <Briefcase color="#059669" size={11} fill="#059669" />
+                    <Text style={styles.workerText}>Worker</Text>
+                  </View>
+                  {userDetails?.designation && (
+                    <View style={styles.designationBadge}>
+                      <Text style={styles.designationText}>
+                        {userDetails.designation}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.heroRight}>
+              <View style={styles.orbitContainer}>
+                <LottieView
+                  source={require('../assets/json/Planet_Orbit.json')}
+                  autoPlay
+                  loop
+                  speed={0.3}
+                  style={styles.orbitLottie}
+                />
+              </View>
+            </View>
           </View>
-        </View>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('WorkerProfile')}
-            style={styles.profileButton}
-          >
-            <UserCircle color={COLORS.primary} size={24} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-            <LogOut color={COLORS.danger} size={24} />
-          </TouchableOpacity>
+
+          {/* Bottom Actions Row */}
+          <View style={styles.heroBottom}>
+            <TouchableOpacity
+              style={styles.supportBadge}
+              onPress={() => navigation.navigate('SupportDevScreen')}
+              activeOpacity={0.8}
+            >
+              <Heart color="#EC4899" size={14} fill="#EC4899" />
+              <Text style={styles.supportText}>Support Dev</Text>
+            </TouchableOpacity>
+
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('WorkerProfile')}
+                style={styles.iconButton}
+              >
+                <UserCircle color="#6366F1" size={20} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleLogout}
+                style={[styles.iconButton, styles.logoutIconButton]}
+              >
+                <LogOut color="#EF4444" size={20} />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Temporary Button */}
-        <TouchableOpacity
-          style={styles.temporaryButton}
-          onPress={() => navigation.navigate('SupportDevScreen')}
-          activeOpacity={0.7}
-        >
-          <Play color={COLORS.white} size={20} />
-          <Text style={styles.temporaryButtonText}>Temporary</Text>
-        </TouchableOpacity>
 
         {/* Clock In/Out Card - Only show if clock in is required */}
         {userDetails?.requiresClockIn && (
           <View style={styles.clockCard}>
             <View style={styles.clockCardHeader}>
-              <Clock color={isClockedIn ? COLORS.success : COLORS.textLight} size={24} />
+              <Clock
+                color={isClockedIn ? COLORS.success : COLORS.textLight}
+                size={24}
+              />
               <View style={styles.clockCardHeaderText}>
                 <Text style={styles.clockCardTitle}>
                   {isClockedIn ? 'Clocked In' : 'Clock In Required'}
@@ -206,7 +284,12 @@ const WorkerDashboard = ({ navigation }) => {
             onPress={item.onPress}
             activeOpacity={0.7}
           >
-            <View style={[styles.iconContainer, { backgroundColor: item.color + '15' }]}>
+            <View
+              style={[
+                styles.iconContainer,
+                { backgroundColor: item.color + '15' },
+              ]}
+            >
               <item.icon color={item.color} size={24} />
             </View>
             <View style={styles.menuTextContainer}>
@@ -223,88 +306,173 @@ const WorkerDashboard = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F9FAFB',
   },
-  header: {
-    backgroundColor: COLORS.white,
-    padding: 24,
-    paddingTop: 48,
+  heroSection: {
+    backgroundColor: '#FFFFFF',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  heroCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  heroTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    marginBottom: 16,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
-  },
-  headerAnimation: {
-    width: 50,
-    height: 50,
-    marginBottom: -5,
-  },
-  greeting: {
-    fontSize: 16,
-    color: COLORS.textLight,
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginTop: 4,
-  },
-  role: {
-    fontSize: 14,
-    color: COLORS.primary,
-    marginTop: 2,
-  },
-  headerButtons: {
+  heroLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
+    flex: 1,
   },
-  profileButton: {
-    padding: 8,
+  heroRight: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  logoutButton: {
-    padding: 8,
+  avatarCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#D1FAE5',
+  },
+  avatarInitial: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  userInfo: {
+    gap: 3,
+  },
+  userName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  workerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  workerText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#059669',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  designationBadge: {
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  designationText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#1D4ED8',
+    textTransform: 'capitalize',
+    letterSpacing: 0.3,
+  },
+  orbitContainer: {
+    width: 70,
+    height: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -10,
+  },
+  orbitLottie: {
+    width: 80,
+    height: 80,
+  },
+  heroBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  supportBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FDF2F8',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FBCFE8',
+  },
+  supportText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#EC4899',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutIconButton: {
+    backgroundColor: '#FEE2E2',
   },
   content: {
     flex: 1,
-    padding: 24,
-  },
-  temporaryButton: {
-    backgroundColor: COLORS.secondary,
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: COLORS.secondary,
-  },
-  temporaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.white,
-    marginLeft: 8,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 16,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 14,
   },
   clockCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
     marginBottom: 24,
     borderWidth: 2,
-    borderColor: COLORS.border,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 3,
   },
   clockCardHeader: {
     flexDirection: 'row',
@@ -318,11 +486,11 @@ const styles = StyleSheet.create({
   clockCardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.text,
+    color: '#111827',
   },
   clockCardSubtitle: {
     fontSize: 14,
-    color: COLORS.textLight,
+    color: '#6B7280',
     marginTop: 2,
   },
   clockButton: {
@@ -333,47 +501,52 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   clockInButton: {
-    backgroundColor: COLORS.success,
+    backgroundColor: '#10B981',
   },
   clockOutButton: {
-    backgroundColor: COLORS.danger,
+    backgroundColor: '#EF4444',
   },
   clockButtonText: {
-    color: COLORS.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
   },
   menuItem: {
     flexDirection: 'row',
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#F3F4F6',
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 52,
+    height: 52,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginRight: 14,
   },
   menuTextContainer: {
     flex: 1,
   },
   menuTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 3,
   },
   menuSubtitle: {
-    fontSize: 14,
-    color: COLORS.textLight,
-    marginTop: 2,
+    fontSize: 13,
+    color: '#6B7280',
   },
 });
 
