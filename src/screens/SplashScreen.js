@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet, Image } from 'react-native';
 import LottieView from 'lottie-react-native';
 
 const SplashScreen = ({ navigation }) => {
@@ -16,15 +16,17 @@ const SplashScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <LottieView
-        // source={require('../assets/json/Rocket.json')}
-        source={require('../assets/json/Rock_Ani.json')}
+        source={require('../assets/json/Rocket.json')}
+        //source={require('../assets/json/Rock_Ani.json')}
         autoPlay
         loop
         style={styles.animation}
       />
-      <Text style={{ fontWeight: 'bold', fontSize: 24, color: '#6b78e8ff' }}>
-        Workerso
-      </Text>
+      <Image
+        source={require('../assets/images/pngs/workersoPng.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      />
     </View>
   );
 };
@@ -39,6 +41,11 @@ const styles = StyleSheet.create({
   animation: {
     width: 220,
     height: 220,
+  },
+  logo: {
+    width: 200,
+    height: 80,
+    marginTop: 20,
   },
 });
 
