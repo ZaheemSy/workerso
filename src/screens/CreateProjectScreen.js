@@ -9,13 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Modal,
 } from 'react-native';
-import { Briefcase, X, Save, FileText, Users, Check, Calendar } from 'lucide-react-native';
+import { Briefcase, X, Save, FileText, Users, Check, Calendar, UserPlus, UsersIcon } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
 import { createProject, getUsersByOrg, getGroupsByOrg } from '../services/storageService';
-// import DatePickerInput from '../components/DatePickerInput';
 import { formatDateToISO, formatDateToDDMMYYYY, parseDDMMYYYY } from '../utils/dateUtils';
 
 const CreateProjectScreen = ({ navigation, route }) => {
@@ -32,7 +32,10 @@ const CreateProjectScreen = ({ navigation, route }) => {
   const [groups, setGroups] = useState([]);
   const [selectedWorkers, setSelectedWorkers] = useState([]);
   const [selectedGroups, setSelectedGroups] = useState([]);
-  const [showWorkerSelection, setShowWorkerSelection] = useState(false);
+
+  // Modal states
+  const [showWorkerModal, setShowWorkerModal] = useState(false);
+  const [showGroupModal, setShowGroupModal] = useState(false);
 
   useEffect(() => {
     loadWorkersAndGroups();
@@ -167,6 +170,16 @@ const CreateProjectScreen = ({ navigation, route }) => {
     }
   };
 
+  const getWorkerName = (workerId) => {
+    const worker = workers.find(w => w.userId === workerId);
+    return worker ? worker.name : '';
+  };
+
+  const getGroupName = (groupId) => {
+    const group = groups.find(g => g.groupId === groupId);
+    return group ? group.groupName : '';
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -233,7 +246,7 @@ const CreateProjectScreen = ({ navigation, route }) => {
           />
         </View>
 
-        {/* Worker and Group Selection - Optional */}
+        {/* Worker and Group Assignment Section */}
         <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
           Assign Workers & Groups (Optional)
         </Text>
@@ -241,60 +254,120 @@ const CreateProjectScreen = ({ navigation, route }) => {
           You can add workers and groups now or later
         </Text>
 
+        {/* Assign Workers Button */}
         <TouchableOpacity
-          style={styles.selectionButton}
-          onPress={() => setShowWorkerSelection(!showWorkerSelection)}
+          style={styles.assignButton}
+          onPress={() => setShowWorkerModal(true)}
           activeOpacity={0.7}
         >
-          <Users color={COLORS.primary} size={20} />
-          <Text style={styles.selectionButtonText}>
-            {selectedWorkers.length + selectedGroups.length > 0
-              ? `${selectedWorkers.length} workers, ${selectedGroups.length} groups selected`
-              : 'Select Workers & Groups'}
-          </Text>
-          <Text style={styles.expandText}>
-            {showWorkerSelection ? '▲' : '▼'}
-          </Text>
+          <UserPlus color={COLORS.primary} size={20} />
+          <View style={styles.assignButtonContent}>
+            <Text style={styles.assignButtonTitle}>Assign Workers</Text>
+            <Text style={styles.assignButtonSubtitle}>
+              {selectedWorkers.length > 0
+                ? `${selectedWorkers.length} worker${selectedWorkers.length !== 1 ? 's' : ''} selected`
+                : 'Select individual workers'}
+            </Text>
+          </View>
         </TouchableOpacity>
 
-        {/* Worker and Group Selection Cards */}
-        {showWorkerSelection && (
-          <View style={styles.selectionContainer}>
-            {/* Worker Groups */}
-            {groups.length > 0 && (
-              <>
-                <Text style={styles.selectionSectionTitle}>Worker Groups</Text>
-                {groups.map((group) => (
-                  <TouchableOpacity
-                    key={group.groupId}
-                    style={[
-                      styles.selectionCard,
-                      selectedGroups.includes(group.groupId) && styles.selectionCardSelected,
-                    ]}
-                    onPress={() => toggleGroup(group.groupId)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.selectionCardContent}>
-                      <Text style={styles.selectionCardTitle}>{group.groupName}</Text>
-                      <Text style={styles.selectionCardSubtitle}>
-                        {group.workers?.length || 0} workers
-                      </Text>
-                    </View>
-                    {selectedGroups.includes(group.groupId) && (
-                      <View style={styles.checkIcon}>
-                        <Check color={COLORS.white} size={16} />
-                      </View>
-                    )}
+        {/* Show selected workers */}
+        {selectedWorkers.length > 0 && (
+          <View style={styles.selectedContainer}>
+            <Text style={styles.selectedTitle}>Selected Workers:</Text>
+            <View style={styles.selectedChipsContainer}>
+              {selectedWorkers.map((workerId) => (
+                <View key={workerId} style={styles.selectedChip}>
+                  <Text style={styles.selectedChipText}>{getWorkerName(workerId)}</Text>
+                  <TouchableOpacity onPress={() => toggleWorker(workerId)}>
+                    <X color={COLORS.primary} size={14} />
                   </TouchableOpacity>
-                ))}
-              </>
-            )}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
-            {/* Individual Workers */}
-            {workers.length > 0 && (
-              <>
-                <Text style={styles.selectionSectionTitle}>Individual Workers</Text>
-                {workers.map((worker) => (
+        {/* Assign Groups Button */}
+        <TouchableOpacity
+          style={styles.assignButton}
+          onPress={() => setShowGroupModal(true)}
+          activeOpacity={0.7}
+        >
+          <UsersIcon color={COLORS.secondary} size={20} />
+          <View style={styles.assignButtonContent}>
+            <Text style={styles.assignButtonTitle}>Assign Worker Groups</Text>
+            <Text style={styles.assignButtonSubtitle}>
+              {selectedGroups.length > 0
+                ? `${selectedGroups.length} group${selectedGroups.length !== 1 ? 's' : ''} selected`
+                : 'Select worker groups'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Show selected groups */}
+        {selectedGroups.length > 0 && (
+          <View style={styles.selectedContainer}>
+            <Text style={styles.selectedTitle}>Selected Groups:</Text>
+            <View style={styles.selectedChipsContainer}>
+              {selectedGroups.map((groupId) => (
+                <View key={groupId} style={[styles.selectedChip, styles.selectedChipGroup]}>
+                  <Text style={[styles.selectedChipText, styles.selectedChipTextGroup]}>
+                    {getGroupName(groupId)}
+                  </Text>
+                  <TouchableOpacity onPress={() => toggleGroup(groupId)}>
+                    <X color={COLORS.secondary} size={14} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleCreateProject}
+          disabled={loading}
+        >
+          <Save color={COLORS.white} size={20} style={styles.buttonIcon} />
+          <Text style={styles.buttonText}>
+            {loading ? 'Creating...' : 'Create Project'}
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      {/* Worker Selection Modal */}
+      <Modal
+        visible={showWorkerModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowWorkerModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Workers</Text>
+              <TouchableOpacity onPress={() => setShowWorkerModal(false)}>
+                <X color={COLORS.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSubtitle}>
+              {selectedWorkers.length} worker{selectedWorkers.length !== 1 ? 's' : ''} selected
+            </Text>
+
+            <ScrollView
+              style={styles.modalScroll}
+              showsVerticalScrollIndicator={true}
+            >
+              {workers.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Users color={COLORS.gray} size={48} />
+                  <Text style={styles.emptyText}>No workers available</Text>
+                  <Text style={styles.emptySubtext}>Add workers first</Text>
+                </View>
+              ) : (
+                workers.map((worker) => (
                   <TouchableOpacity
                     key={worker.userId}
                     style={[
@@ -314,31 +387,86 @@ const CreateProjectScreen = ({ navigation, route }) => {
                       </View>
                     )}
                   </TouchableOpacity>
-                ))}
-              </>
-            )}
+                ))
+              )}
+            </ScrollView>
 
-            {workers.length === 0 && groups.length === 0 && (
-              <View style={styles.emptyState}>
-                <Users color={COLORS.gray} size={48} />
-                <Text style={styles.emptyText}>No workers or groups available</Text>
-                <Text style={styles.emptySubtext}>Add workers and groups first</Text>
-              </View>
-            )}
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setShowWorkerModal(false)}
+            >
+              <Text style={styles.modalButtonText}>Done</Text>
+            </TouchableOpacity>
           </View>
-        )}
+        </View>
+      </Modal>
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleCreateProject}
-          disabled={loading}
-        >
-          <Save color={COLORS.white} size={20} style={styles.buttonIcon} />
-          <Text style={styles.buttonText}>
-            {loading ? 'Creating...' : 'Create Project'}
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
+      {/* Group Selection Modal */}
+      <Modal
+        visible={showGroupModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowGroupModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Worker Groups</Text>
+              <TouchableOpacity onPress={() => setShowGroupModal(false)}>
+                <X color={COLORS.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSubtitle}>
+              {selectedGroups.length} group{selectedGroups.length !== 1 ? 's' : ''} selected
+            </Text>
+
+            <ScrollView
+              style={styles.modalScroll}
+              showsVerticalScrollIndicator={true}
+            >
+              {groups.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <UsersIcon color={COLORS.gray} size={48} />
+                  <Text style={styles.emptyText}>No worker groups available</Text>
+                  <Text style={styles.emptySubtext}>Create worker groups first</Text>
+                </View>
+              ) : (
+                groups.map((group) => (
+                  <TouchableOpacity
+                    key={group.groupId}
+                    style={[
+                      styles.selectionCard,
+                      selectedGroups.includes(group.groupId) && styles.selectionCardSelected,
+                    ]}
+                    onPress={() => toggleGroup(group.groupId)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.selectionCardContent}>
+                      <Text style={styles.selectionCardTitle}>{group.groupName}</Text>
+                      <Text style={styles.selectionCardSubtitle}>
+                        {group.workers?.length || 0} worker{(group.workers?.length || 0) !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                    {selectedGroups.includes(group.groupId) && (
+                      <View style={styles.checkIcon}>
+                        <Check color={COLORS.white} size={16} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setShowGroupModal(false)}
+            >
+              <Text style={styles.modalButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -379,7 +507,7 @@ const styles = StyleSheet.create({
   sectionSubtitle: {
     fontSize: 14,
     color: COLORS.textLight,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -413,17 +541,68 @@ const styles = StyleSheet.create({
   textArea: {
     height: '100%',
   },
-  infoBox: {
-    backgroundColor: COLORS.primary + '10',
+  assignButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     padding: 16,
-    marginTop: 12,
     marginBottom: 12,
   },
-  infoText: {
-    fontSize: 14,
+  assignButtonContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  assignButtonTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  assignButtonSubtitle: {
+    fontSize: 13,
+    color: COLORS.textLight,
+    marginTop: 2,
+  },
+  selectedContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  selectedTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  selectedChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  selectedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  selectedChipGroup: {
+    backgroundColor: COLORS.secondary + '15',
+  },
+  selectedChipText: {
+    fontSize: 13,
     color: COLORS.primary,
-    lineHeight: 20,
+    fontWeight: '500',
+  },
+  selectedChipTextGroup: {
+    color: COLORS.secondary,
   },
   button: {
     backgroundColor: COLORS.primary,
@@ -446,48 +625,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  selectionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 16,
-    marginBottom: 16,
-  },
-  selectionButtonText: {
+  modalOverlay: {
     flex: 1,
-    fontSize: 15,
-    color: COLORS.text,
-    marginLeft: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
-  expandText: {
-    fontSize: 14,
-    color: COLORS.gray,
-  },
-  selectionContainer: {
+  modalContent: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    maxHeight: '80%',
   },
-  selectionSectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginTop: 8,
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.text,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginBottom: 16,
+  },
+  modalScroll: {
+    maxHeight: '70%',
   },
   selectionCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
+    padding: 14,
     marginBottom: 8,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: COLORS.border,
     backgroundColor: COLORS.background,
@@ -531,6 +706,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textLight,
     marginTop: 4,
+  },
+  modalButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+  },
+  modalButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

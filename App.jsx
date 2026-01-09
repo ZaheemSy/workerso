@@ -107,6 +107,7 @@ function AppNavigator() {
 
               {/* Worker Management */}
               <Stack.Screen name="WorkersList" component={WorkersListScreen} />
+              <Stack.Screen name="UserDetail" component={UserDetailScreen} />
               <Stack.Screen name="AddWorker" component={AddWorkerScreen} />
               <Stack.Screen name="WorkerGroupsList" component={WorkerGroupsListScreen} />
               <Stack.Screen name="WorkerGroupList" component={WorkerGroupListScreen} />

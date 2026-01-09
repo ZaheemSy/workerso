@@ -192,7 +192,12 @@ const SupportDevScreen = ({ navigation }) => {
               style={styles.heroLottie}
             />
           </View>
-          <Text style={styles.heroTitle}>Support Workerso</Text>
+          <Text style={styles.heroTitle}>
+            Support{' '}
+            <Text style={[styles.heroTitle, { color: '#2852adff' }]}>
+              Workerso App
+            </Text>
+          </Text>
           <Text style={styles.heroSubtitle}>
             Your support helps keep this app free and actively developed. Every
             contribution is deeply appreciated! 💙

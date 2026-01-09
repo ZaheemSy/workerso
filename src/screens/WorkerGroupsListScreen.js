@@ -10,7 +10,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
-import { X, Plus, Users, Save, Check, ChevronRight, Trash2, Search } from 'lucide-react-native';
+import { X, Plus, Users, Save, Check, ChevronRight, Trash2, Search, Briefcase } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,6 +18,7 @@ import {
   getGroupsByOrg,
   getUsersByOrg,
   createGroup,
+  getDesignationsByOrg,
 } from '../services/storageService';
 
 const WorkerGroupsListScreen = ({ navigation }) => {
@@ -27,6 +28,7 @@ const WorkerGroupsListScreen = ({ navigation }) => {
   const [workers, setWorkers] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [designations, setDesignations] = useState([]);
 
   // Form state
   const [groupName, setGroupName] = useState('');
@@ -48,19 +50,23 @@ const WorkerGroupsListScreen = ({ navigation }) => {
   const loadWorkers = async () => {
     try {
       const allUsers = await getUsersByOrg(session.orgId);
-      let workersList = allUsers.filter(user => user.role === ROLES.WORKER);
-
-      // Admins only see their workers
-      if (session.role === ROLES.ADMIN) {
-        workersList = workersList.filter(
-          worker => worker.adminId === session.userId
-        );
-      }
+      // Show all workers regardless of role
+      const workersList = allUsers.filter(user => user.role === ROLES.WORKER);
 
       setWorkers(workersList);
+
+      // Load designations
+      const designationsList = await getDesignationsByOrg(session.orgId);
+      setDesignations(designationsList);
     } catch (error) {
       console.error('Error loading workers:', error);
     }
+  };
+
+  const getDesignationName = (designationId) => {
+    if (!designationId) return null;
+    const designation = designations.find(d => d.designationId === designationId);
+    return designation ? designation.name : null;
   };
 
   const getWorkerCount = (groupId) => {
@@ -146,7 +152,8 @@ const WorkerGroupsListScreen = ({ navigation }) => {
 
   const renderWorkerSelection = ({ item }) => {
     const isSelected = selectedWorkers.includes(item.userId);
-    
+    const designationName = getDesignationName(item.designationId);
+
     return (
       <TouchableOpacity
         style={[
@@ -159,8 +166,11 @@ const WorkerGroupsListScreen = ({ navigation }) => {
         <View style={styles.workerInfo}>
           <Text style={styles.workerName}>{item.name}</Text>
           <Text style={styles.workerUsername}>@{item.username}</Text>
-          {item.designation && (
-            <Text style={styles.workerDesignation}>{item.designation}</Text>
+          {designationName && (
+            <View style={styles.designationBadge}>
+              <Briefcase color={COLORS.primary} size={12} />
+              <Text style={styles.workerDesignation}>{designationName}</Text>
+            </View>
           )}
         </View>
         {isSelected && (
@@ -512,10 +522,16 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     marginTop: 2,
   },
+  designationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
   workerDesignation: {
     fontSize: 12,
     color: COLORS.primary,
-    marginTop: 2,
+    marginLeft: 4,
+    fontWeight: '500',
   },
   checkIcon: {
     width: 24,

@@ -8,11 +8,11 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
-import { Users, X, Save, Check } from 'lucide-react-native';
+import { Users, X, Save, Check, Briefcase } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
-import { createGroup, getUsersByOrg } from '../services/storageService';
+import { createGroup, getUsersByOrg, getDesignationsByOrg } from '../services/storageService';
 
 const CreateWorkerGroupScreen = ({ navigation, route }) => {
   const { session } = useAuth();
@@ -21,20 +21,31 @@ const CreateWorkerGroupScreen = ({ navigation, route }) => {
   const [workers, setWorkers] = useState([]);
   const [selectedWorkers, setSelectedWorkers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [designations, setDesignations] = useState([]);
 
   useEffect(() => {
-    loadWorkers();
+    loadData();
   }, []);
 
-  const loadWorkers = async () => {
+  const loadData = async () => {
     try {
+      // Load workers
       const allUsers = await getUsersByOrg(session.orgId);
       const workersList = allUsers.filter(user => user.role === ROLES.WORKER);
       setWorkers(workersList);
+
+      // Load designations
+      const designationsList = await getDesignationsByOrg(session.orgId);
+      setDesignations(designationsList);
     } catch (error) {
-      console.error('Error loading workers:', error);
+      console.error('Error loading data:', error);
       Alert.alert('Error', 'Failed to load workers');
     }
+  };
+
+  const getDesignationName = (designationId) => {
+    const designation = designations.find(d => d.designationId === designationId);
+    return designation ? designation.name : null;
   };
 
   const toggleWorker = (workerId) => {
@@ -130,6 +141,14 @@ const CreateWorkerGroupScreen = ({ navigation, route }) => {
               <View style={styles.workerInfo}>
                 <Text style={styles.workerName}>{worker.name}</Text>
                 <Text style={styles.workerUsername}>@{worker.username}</Text>
+                {worker.designationId && getDesignationName(worker.designationId) && (
+                  <View style={styles.designationBadge}>
+                    <Briefcase color={COLORS.primary} size={12} />
+                    <Text style={styles.designationText}>
+                      {getDesignationName(worker.designationId)}
+                    </Text>
+                  </View>
+                )}
               </View>
               {selectedWorkers.includes(worker.userId) && (
                 <View style={styles.checkIcon}>
@@ -239,6 +258,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textLight,
     marginTop: 2,
+  },
+  designationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  designationText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    marginLeft: 4,
+    fontWeight: '500',
   },
   checkIcon: {
     width: 24,

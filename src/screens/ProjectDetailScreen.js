@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import { X, Briefcase, Users, Calendar, Camera, FileText, UserPlus } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
-import { getProjectById, getUserById, getAttendanceByOrg, getWorkLogsByOrg } from '../services/storageService';
+import { getProjectById, getUserById, getAttendanceByOrg, getWorkLogsByOrg, getDesignationById } from '../services/storageService';
 
 const ProjectDetailScreen = ({ navigation, route }) => {
   const { session } = useAuth();
@@ -28,6 +28,10 @@ const ProjectDetailScreen = ({ navigation, route }) => {
         const workerDetails = await Promise.all(
           (projectData.workers || []).map(async (workerId) => {
             const worker = await getUserById(workerId);
+            if (worker && worker.designationId) {
+              const designation = await getDesignationById(worker.designationId);
+              worker.designation = designation;
+            }
             return worker;
           })
         );
@@ -169,6 +173,12 @@ const ProjectDetailScreen = ({ navigation, route }) => {
                 <View style={styles.workerInfo}>
                   <Text style={styles.workerName}>{worker.name}</Text>
                   <Text style={styles.workerDetails}>@{worker.username}</Text>
+                  {worker.designation && (
+                    <View style={styles.designationBadge}>
+                      <Briefcase color={COLORS.primary} size={12} />
+                      <Text style={styles.designationText}>{worker.designation.name}</Text>
+                    </View>
+                  )}
                 </View>
               </View>
             ))
@@ -319,6 +329,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textLight,
     marginTop: 2,
+  },
+  designationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  designationText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    marginLeft: 4,
+    fontWeight: '500',
   },
   emptyBox: {
     backgroundColor: COLORS.white,

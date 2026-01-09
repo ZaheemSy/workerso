@@ -236,9 +236,12 @@ export const getWorkLogsByOrg = async (orgId) => {
   return worklogs.filter(log => log.orgId === orgId);
 };
 
-export const getWorkLogsByUser = async (userId, date) => {
+export const getWorkLogsByUser = async (userId, date = null) => {
   const worklogs = (await getItem(STORAGE_KEYS.WORKLOGS)) || [];
-  return worklogs.filter(log => log.userId === userId && log.date === date);
+  if (date) {
+    return worklogs.filter(log => log.userId === userId && log.date === date);
+  }
+  return worklogs.filter(log => log.userId === userId);
 };
 
 // Dev Logs (for global oversight)

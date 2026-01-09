@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { X, Plus, User, Mail, Phone, Lock, UserPlus, Briefcase, Circle, Search } from 'lucide-react-native';
+import { X, Plus, User, Mail, Phone, Lock, UserPlus, Briefcase, Circle, Search, ChevronRight } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
@@ -28,6 +28,7 @@ const WorkersListScreen = ({ navigation }) => {
   const [workers, setWorkers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showDesignationModal, setShowDesignationModal] = useState(false);
   const [designations, setDesignations] = useState([]);
   const [selectedDesignationId, setSelectedDesignationId] = useState(null);
   const [showNewDesignationInput, setShowNewDesignationInput] = useState(false);
@@ -51,16 +52,8 @@ const WorkersListScreen = ({ navigation }) => {
   const loadWorkers = async () => {
     try {
       const allUsers = await getUsersByOrg(session.orgId);
-      // For Admin, only show their assigned workers
-      let workersList;
-      if (session.role === ROLES.ADMIN) {
-        workersList = allUsers.filter(
-          user => user.role === ROLES.WORKER && user.adminId === session.userId
-        );
-      } else {
-        // Super Admin sees all workers
-        workersList = allUsers.filter(user => user.role === ROLES.WORKER);
-      }
+      // Show all workers regardless of role
+      const workersList = allUsers.filter(user => user.role === ROLES.WORKER);
       setWorkers(workersList);
     } catch (error) {
       console.error('Error loading workers:', error);
@@ -175,7 +168,7 @@ const WorkersListScreen = ({ navigation }) => {
         confirmPassword: '',
       });
       setSelectedDesignationId(null);
-      
+
       await loadWorkers();
 
       Alert.alert(
@@ -192,6 +185,17 @@ const WorkersListScreen = ({ navigation }) => {
   const getDesignationName = (designationId) => {
     const designation = designations.find(d => d.designationId === designationId);
     return designation ? designation.name : 'Not Assigned';
+  };
+
+  const getSelectedDesignationName = () => {
+    if (!selectedDesignationId) return 'Select Designation';
+    const designation = designations.find(d => d.designationId === selectedDesignationId);
+    return designation ? designation.name : 'Select Designation';
+  };
+
+  const handleSelectDesignation = (designationId) => {
+    setSelectedDesignationId(designationId);
+    setShowDesignationModal(false);
   };
 
   const filteredWorkers = workers.filter((worker) => {
@@ -347,80 +351,22 @@ const WorkersListScreen = ({ navigation }) => {
                 />
               </View>
 
-              {/* Designation Selection */}
+              {/* Designation Selection Button */}
               <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Designation</Text>
-              
-              {designations.map((designation) => (
-                <TouchableOpacity
-                  key={designation.designationId}
-                  style={[
-                    styles.designationCard,
-                    selectedDesignationId === designation.designationId && styles.designationCardSelected,
-                  ]}
-                  onPress={() => setSelectedDesignationId(designation.designationId)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.designationCardContent}>
-                    <Briefcase color={COLORS.gray} size={16} style={{ marginRight: 8 }} />
-                    <Text style={styles.designationCardText}>{designation.name}</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.radioButton,
-                      selectedDesignationId === designation.designationId && styles.radioButtonSelected,
-                    ]}
-                  >
-                    {selectedDesignationId === designation.designationId && (
-                      <Circle color={COLORS.primary} size={12} fill={COLORS.primary} />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))}
-
-              {/* Add New Designation Option */}
-              {!showNewDesignationInput && (
-                <TouchableOpacity
-                  style={styles.addNewDesignationButton}
-                  onPress={() => setShowNewDesignationInput(true)}
-                  activeOpacity={0.7}
-                >
-                  <Plus color={COLORS.primary} size={16} />
-                  <Text style={styles.addNewDesignationText}>Add New Designation</Text>
-                </TouchableOpacity>
-              )}
-
-              {showNewDesignationInput && (
-                <View style={styles.newDesignationContainer}>
-                  <View style={styles.inputContainer}>
-                    <Briefcase color={COLORS.gray} size={20} style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="New Designation Name"
-                      placeholderTextColor={COLORS.gray}
-                      value={newDesignationName}
-                      onChangeText={setNewDesignationName}
-                      autoCapitalize="words"
-                    />
-                  </View>
-                  <View style={styles.newDesignationActions}>
-                    <TouchableOpacity
-                      style={styles.cancelButton}
-                      onPress={() => {
-                        setShowNewDesignationInput(false);
-                        setNewDesignationName('');
-                      }}
-                    >
-                      <Text style={styles.cancelButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.createDesignationButton}
-                      onPress={handleAddNewDesignation}
-                    >
-                      <Text style={styles.createDesignationButtonText}>Create</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
+              <TouchableOpacity
+                style={styles.designationSelectButton}
+                onPress={() => setShowDesignationModal(true)}
+                activeOpacity={0.7}
+              >
+                <Briefcase color={COLORS.gray} size={20} />
+                <Text style={[
+                  styles.designationSelectText,
+                  !selectedDesignationId && styles.designationSelectTextPlaceholder
+                ]}>
+                  {getSelectedDesignationName()}
+                </Text>
+                <ChevronRight color={COLORS.gray} size={20} />
+              </TouchableOpacity>
 
               <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Login Credentials</Text>
 
@@ -476,6 +422,121 @@ const WorkersListScreen = ({ navigation }) => {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Designation Selection Modal */}
+      <Modal
+        visible={showDesignationModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDesignationModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.designationModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Designation</Text>
+              <TouchableOpacity onPress={() => setShowDesignationModal(false)}>
+                <X color={COLORS.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Scrollable Designation List */}
+            <ScrollView
+              style={styles.designationScrollView}
+              showsVerticalScrollIndicator={true}
+            >
+              {designations.length === 0 ? (
+                <View style={styles.emptyDesignationState}>
+                  <Briefcase color={COLORS.gray} size={48} />
+                  <Text style={styles.emptyDesignationText}>No designations yet</Text>
+                  <Text style={styles.emptyDesignationSubtext}>
+                    Create a designation to get started
+                  </Text>
+                </View>
+              ) : (
+                designations.map((designation) => (
+                  <TouchableOpacity
+                    key={designation.designationId}
+                    style={[
+                      styles.designationItem,
+                      selectedDesignationId === designation.designationId && styles.designationItemSelected,
+                    ]}
+                    onPress={() => handleSelectDesignation(designation.designationId)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.designationItemContent}>
+                      <Briefcase
+                        color={selectedDesignationId === designation.designationId ? COLORS.primary : COLORS.gray}
+                        size={20}
+                      />
+                      <Text style={[
+                        styles.designationItemText,
+                        selectedDesignationId === designation.designationId && styles.designationItemTextSelected
+                      ]}>
+                        {designation.name}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.radioButton,
+                        selectedDesignationId === designation.designationId && styles.radioButtonSelected,
+                      ]}
+                    >
+                      {selectedDesignationId === designation.designationId && (
+                        <Circle color={COLORS.primary} size={12} fill={COLORS.primary} />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+
+            {/* Add New Designation Section (Outside Scroll) */}
+            <View style={styles.addDesignationSection}>
+              {!showNewDesignationInput ? (
+                <TouchableOpacity
+                  style={styles.addNewDesignationButton}
+                  onPress={() => setShowNewDesignationInput(true)}
+                  activeOpacity={0.7}
+                >
+                  <Plus color={COLORS.primary} size={20} />
+                  <Text style={styles.addNewDesignationText}>Add New Designation</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.newDesignationContainer}>
+                  <View style={styles.inputContainer}>
+                    <Briefcase color={COLORS.gray} size={20} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="New Designation Name"
+                      placeholderTextColor={COLORS.gray}
+                      value={newDesignationName}
+                      onChangeText={setNewDesignationName}
+                      autoCapitalize="words"
+                    />
+                  </View>
+                  <View style={styles.newDesignationActions}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => {
+                        setShowNewDesignationInput(false);
+                        setNewDesignationName('');
+                      }}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.createDesignationButton}
+                      onPress={handleAddNewDesignation}
+                    >
+                      <Text style={styles.createDesignationButtonText}>Create</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -616,6 +677,13 @@ const styles = StyleSheet.create({
     padding: 24,
     maxHeight: '90%',
   },
+  designationModalContent: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    maxHeight: '70%',
+  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -655,30 +723,74 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.text,
   },
-  designationCard: {
+  designationSelectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    height: 50,
+    marginBottom: 12,
+  },
+  designationSelectText: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
+    marginLeft: 12,
+  },
+  designationSelectTextPlaceholder: {
+    color: COLORS.gray,
+  },
+  designationScrollView: {
+    maxHeight: 300,
+  },
+  emptyDesignationState: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyDesignationText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginTop: 12,
+  },
+  emptyDesignationSubtext: {
+    fontSize: 13,
+    color: COLORS.textLight,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  designationItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
+    padding: 16,
     marginBottom: 8,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: COLORS.border,
     backgroundColor: COLORS.background,
   },
-  designationCardSelected: {
+  designationItemSelected: {
     borderColor: COLORS.primary,
     backgroundColor: COLORS.primary + '05',
   },
-  designationCardContent: {
+  designationItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  designationCardText: {
-    fontSize: 14,
+  designationItemText: {
+    fontSize: 16,
     fontWeight: '500',
     color: COLORS.text,
+    marginLeft: 12,
+  },
+  designationItemTextSelected: {
+    color: COLORS.primary,
+    fontWeight: '600',
   },
   radioButton: {
     width: 20,
@@ -692,26 +804,31 @@ const styles = StyleSheet.create({
   radioButtonSelected: {
     borderColor: COLORS.primary,
   },
+  addDesignationSection: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: 16,
+    marginTop: 8,
+  },
   addNewDesignationButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
     borderColor: COLORS.primary,
     borderStyle: 'dashed',
-    marginTop: 4,
-    marginBottom: 16,
+    backgroundColor: COLORS.primary + '05',
   },
   addNewDesignationText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.primary,
     marginLeft: 8,
   },
   newDesignationContainer: {
-    marginBottom: 16,
+    marginBottom: 0,
   },
   newDesignationActions: {
     flexDirection: 'row',
