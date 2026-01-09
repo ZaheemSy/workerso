@@ -1,27 +1,46 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { UserCog, Users, Briefcase, Shield, Settings, LogOut, Building2, FileBarChart, UserPlus, Award, UserCircle, Play } from 'lucide-react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+} from 'react-native';
+import {
+  UserCog,
+  Users,
+  Briefcase,
+  Shield,
+  Settings,
+  LogOut,
+  Building2,
+  FileBarChart,
+  UserPlus,
+  Award,
+  UserCircle,
+  Play,
+  Sparkles,
+  Heart,
+} from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
+import LottieView from 'lottie-react-native';
 
 const SuperAdminDashboard = ({ navigation }) => {
   const { session, logout } = useAuth();
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-          },
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const menuItems = [
@@ -85,45 +104,79 @@ const SuperAdminDashboard = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View>
-            <Text style={styles.greeting}>Hello,</Text>
-            <Text style={styles.name}>{session?.name || 'Super Admin'}</Text>
-            <Text style={styles.role}>Super Admin</Text>
+      {/* Hero Card Header */}
+      <View style={styles.heroSection}>
+        <View style={styles.heroCard}>
+          <View style={styles.heroTop}>
+            <View style={styles.heroLeft}>
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarInitial}>
+                  {session?.name?.charAt(0)?.toUpperCase() || 'S'}
+                </Text>
+              </View>
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>
+                  {session?.name || 'Super Admin'}
+                </Text>
+                <View style={styles.adminBadge}>
+                  <Shield color="#DC2626" size={11} fill="#DC2626" />
+                  <Text style={styles.adminText}>Super Admin</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.heroRight}>
+              <View style={styles.orbitContainer}>
+                <LottieView
+                  source={require('../assets/json/Planet_Orbit.json')}
+                  autoPlay
+                  loop
+                  speed={0.3}
+                  style={styles.orbitLottie}
+                />
+              </View>
+            </View>
           </View>
-        </View>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('OrganizationProfile')}
-            style={styles.profileButton}
-          >
-            <UserCircle color={COLORS.primary} size={24} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-            <LogOut color={COLORS.danger} size={24} />
-          </TouchableOpacity>
+
+          {/* Bottom Actions Row */}
+          <View style={styles.heroBottom}>
+            <TouchableOpacity
+              style={styles.supportBadge}
+              onPress={() => navigation.navigate('SupportDevScreen')}
+              activeOpacity={0.8}
+            >
+              <Heart color="#EC4899" size={14} fill="#EC4899" />
+              <Text style={styles.supportText}>Support Dev</Text>
+            </TouchableOpacity>
+
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('OrganizationProfile')}
+                style={styles.iconButton}
+              >
+                <UserCircle color="#6366F1" size={20} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleLogout}
+                style={[styles.iconButton, styles.logoutIconButton]}
+              >
+                <LogOut color="#EF4444" size={20} />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Temporary Button */}
         <TouchableOpacity
-          style={styles.temporaryButton}
-          onPress={() => navigation.navigate('SupportDevScreen')}
-          activeOpacity={0.7}
-        >
-          <Play color={COLORS.white} size={20} />
-          <Text style={styles.temporaryButtonText}>Temporary</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.topButton}
+          style={styles.adminWorkersCard}
           onPress={() => navigation.navigate('AdminsAndWorkers')}
           activeOpacity={0.7}
         >
-          <Users color={COLORS.primary} size={24} />
-          <Text style={styles.topButtonText}>Admins and Workers</Text>
+          <Users color="#8B5CF6" size={22} />
+          <Text style={styles.adminWorkersTitle}>Admins & Workers</Text>
+          <Text style={styles.adminWorkersSeparator}>•</Text>
+          <Text style={styles.adminWorkersSubtitle}>See all employees</Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>Administration</Text>
@@ -136,7 +189,12 @@ const SuperAdminDashboard = ({ navigation }) => {
               onPress={item.onPress}
               activeOpacity={0.7}
             >
-              <View style={[styles.iconContainer, { backgroundColor: item.color + '15' }]}>
+              <View
+                style={[
+                  styles.iconContainer,
+                  { backgroundColor: item.color + '15' },
+                ]}
+              >
                 <item.icon color={item.color} size={28} />
               </View>
               <Text style={styles.menuTitle}>{item.title}</Text>
@@ -152,111 +210,189 @@ const SuperAdminDashboard = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F9FAFB',
   },
-  header: {
-    backgroundColor: COLORS.white,
-    padding: 24,
-    paddingTop: 48,
+  heroSection: {
+    backgroundColor: '#FFFFFF',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  heroCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  heroTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    marginBottom: 16,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
-  },
-  headerAnimation: {
-    width: 50,
-    height: 50,
-    marginBottom: -5,
-  },
-  greeting: {
-    fontSize: 16,
-    color: COLORS.textLight,
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginTop: 4,
-  },
-  role: {
-    fontSize: 14,
-    color: COLORS.primary,
-    marginTop: 2,
-  },
-  headerButtons: {
+  heroLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
+    flex: 1,
   },
-  profileButton: {
-    padding: 8,
+  heroRight: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  logoutButton: {
-    padding: 8,
+  avatarCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#FEE2E2',
+  },
+  avatarInitial: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  userInfo: {
+    gap: 3,
+  },
+  userName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  adminBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  adminText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#DC2626',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  orbitContainer: {
+    width: 70,
+    height: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -10,
+  },
+  orbitLottie: {
+    width: 80,
+    height: 80,
+  },
+  heroBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  supportBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FDF2F8',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FBCFE8',
+  },
+  supportText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#EC4899',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutIconButton: {
+    backgroundColor: '#FEE2E2',
   },
   content: {
     flex: 1,
-    padding: 24,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
-  temporaryButton: {
-    backgroundColor: COLORS.secondary,
-    borderRadius: 12,
-    padding: 16,
+  adminWorkersCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 12,
+    backgroundColor: '#F5F3FF',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     marginBottom: 16,
-    borderWidth: 2,
-    borderColor: COLORS.secondary,
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
   },
-  temporaryButtonText: {
+  adminWorkersTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.white,
-    marginLeft: 8,
+    color: '#7C3AED',
   },
-  topButton: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
+  adminWorkersSeparator: {
+    fontSize: 14,
+    color: '#A78BFA',
+    marginHorizontal: 2,
   },
-  topButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.primary,
-    marginLeft: 12,
+  adminWorkersSubtitle: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#919191ff',
+    flex: 1,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 16,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 14,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    paddingBottom: 80,
   },
   menuItem: {
     width: '48%',
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     padding: 16,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 3,
   },
   iconContainer: {
     width: 56,
@@ -268,13 +404,13 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
+    fontWeight: '700',
+    color: '#111827',
     marginBottom: 4,
   },
   menuSubtitle: {
     fontSize: 12,
-    color: COLORS.textLight,
+    color: '#6B7280',
   },
 });
 
