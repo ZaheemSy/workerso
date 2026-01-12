@@ -9,8 +9,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Modal,
 } from 'react-native';
-import { Building2, User, Mail, Phone, Lock, UserPlus, Eye, EyeOff } from 'lucide-react-native';
+import { Building2, User, Mail, Phone, Lock, UserPlus, Eye, EyeOff, Award, ChevronDown } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { createOrganization, createUser } from '../services/storageService';
@@ -28,9 +29,34 @@ const SignupScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [selectedDesignation, setSelectedDesignation] = useState('Super Admin');
+  const [customDesignation, setCustomDesignation] = useState('');
+  const [showDesignationModal, setShowDesignationModal] = useState(false);
+  const [tempSelectedDesignation, setTempSelectedDesignation] = useState('Super Admin');
+  const [tempCustomDesignation, setTempCustomDesignation] = useState('');
+  const [showDesignationDropdown, setShowDesignationDropdown] = useState(false);
+
+  const DESIGNATION_OPTIONS = ['CEO', 'Owner', 'Director', 'Super Admin', 'Custom'];
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleOpenDesignationModal = () => {
+    setTempSelectedDesignation(selectedDesignation);
+    setTempCustomDesignation(customDesignation);
+    setShowDesignationDropdown(false);
+    setShowDesignationModal(true);
+  };
+
+  const handleConfirmDesignation = () => {
+    if (tempSelectedDesignation === 'Custom' && !tempCustomDesignation.trim()) {
+      Alert.alert('Error', 'Please enter custom role');
+      return;
+    }
+    setSelectedDesignation(tempSelectedDesignation);
+    setCustomDesignation(tempCustomDesignation);
+    setShowDesignationModal(false);
   };
 
   const validateForm = () => {
@@ -42,6 +68,10 @@ const SignupScreen = ({ navigation }) => {
     }
     if (!superAdminName.trim()) {
       Alert.alert('Error', 'Please enter super admin name');
+      return false;
+    }
+    if (selectedDesignation === 'Custom' && !customDesignation.trim()) {
+      Alert.alert('Error', 'Please enter custom role');
       return false;
     }
     if (!email.trim() || !email.includes('@')) {
@@ -85,6 +115,11 @@ const SignupScreen = ({ navigation }) => {
         throw new Error('Failed to create organization');
       }
 
+      // Determine final designation
+      const finalDesignation = selectedDesignation === 'Custom'
+        ? customDesignation.trim()
+        : selectedDesignation;
+
       // Create super admin user
       const user = await createUser({
         orgId: org.orgId,
@@ -94,6 +129,7 @@ const SignupScreen = ({ navigation }) => {
         phone: formData.phone.trim(),
         username: formData.username.trim().toLowerCase(),
         password: formData.password,
+        designation: finalDesignation,
         extraDetails: {},
       });
 
@@ -180,6 +216,21 @@ const SignupScreen = ({ navigation }) => {
             />
           </View>
 
+          <Text style={styles.fieldLabel}>Your Role</Text>
+          <TouchableOpacity
+            style={styles.inputContainer}
+            onPress={handleOpenDesignationModal}
+            activeOpacity={0.7}
+          >
+            <Award color={COLORS.gray} size={20} style={styles.inputIcon} />
+            <Text style={[styles.input, styles.inputText]}>
+              {selectedDesignation === 'Custom' && customDesignation
+                ? customDesignation
+                : selectedDesignation}
+            </Text>
+            <ChevronDown color={COLORS.gray} size={20} />
+          </TouchableOpacity>
+
           <View style={styles.inputContainer}>
             <User color={COLORS.gray} size={20} style={styles.inputIcon} />
             <TextInput
@@ -254,6 +305,85 @@ const SignupScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Designation Selection Modal */}
+      <Modal
+        visible={showDesignationModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDesignationModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Your Role</Text>
+
+            <Text style={styles.modalLabel}>Choose from options</Text>
+            <TouchableOpacity
+              style={styles.modalDropdownContainer}
+              onPress={() => setShowDesignationDropdown(!showDesignationDropdown)}
+            >
+              <Text style={styles.modalDropdownText}>{tempSelectedDesignation}</Text>
+              <ChevronDown color={COLORS.gray} size={20} />
+            </TouchableOpacity>
+
+            {showDesignationDropdown && (
+              <View style={styles.modalDropdownList}>
+                {DESIGNATION_OPTIONS.map((option) => (
+                  <TouchableOpacity
+                    key={option}
+                    style={[
+                      styles.modalDropdownItem,
+                      tempSelectedDesignation === option && styles.modalDropdownItemSelected,
+                    ]}
+                    onPress={() => {
+                      setTempSelectedDesignation(option);
+                      setShowDesignationDropdown(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.modalDropdownItemText,
+                        tempSelectedDesignation === option && styles.modalDropdownItemTextSelected,
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {tempSelectedDesignation === 'Custom' && (
+              <View style={styles.customInputWrapper}>
+                <Text style={styles.modalLabel}>Enter Custom Role</Text>
+                <TextInput
+                  style={styles.modalCustomInput}
+                  placeholder="e.g., Founder, Managing Director"
+                  placeholderTextColor={COLORS.gray}
+                  value={tempCustomDesignation}
+                  onChangeText={setTempCustomDesignation}
+                  autoCapitalize="words"
+                />
+              </View>
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowDesignationModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.okButton]}
+                onPress={handleConfirmDesignation}
+              >
+                <Text style={styles.okButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -309,6 +439,54 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.text,
   },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  dropdownContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    height: 56,
+  },
+  dropdownText: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  dropdownList: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  dropdownItemSelected: {
+    backgroundColor: COLORS.primary + '10',
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  dropdownItemTextSelected: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
   button: {
     backgroundColor: COLORS.primary,
     borderRadius: 12,
@@ -341,6 +519,120 @@ const styles = StyleSheet.create({
   loginTextBold: {
     color: COLORS.primary,
     fontWeight: '600',
+  },
+  inputText: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.text,
+    marginBottom: 20,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  modalDropdownContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 12,
+  },
+  modalDropdownText: {
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  modalDropdownList: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  modalDropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalDropdownItemSelected: {
+    backgroundColor: COLORS.primary + '10',
+  },
+  modalDropdownItemText: {
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  modalDropdownItemTextSelected: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  customInputWrapper: {
+    marginTop: 12,
+  },
+  modalCustomInput: {
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  okButton: {
+    backgroundColor: COLORS.primary,
+  },
+  okButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.white,
   },
 });
 

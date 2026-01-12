@@ -41,6 +41,7 @@ export const AuthProvider = ({ children }) => {
           orgId: user.orgId,
           role: user.role,
           name: user.name,
+          designation: user.designation,
           isLoggedIn: true,
         };
         await saveSession(newSession);

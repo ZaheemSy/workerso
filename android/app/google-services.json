@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "924306046548",
+    "project_id": "workerso",
+    "storage_bucket": "workerso.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:924306046548:android:abff77aebd8aa64170f7c1",
+        "android_client_info": {
+          "package_name": "com.workerso"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDKs705IaMb614gIZqE52PDphu_vthWINw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

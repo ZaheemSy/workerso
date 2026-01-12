@@ -35,6 +35,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { COLORS } from '../constants/colors';
 import { ROLES, ROLE_LABELS } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getUserById,
   updateUser,
@@ -86,12 +87,15 @@ const UserDetailScreen = ({ navigation, route }) => {
   // Admin assignment modal states
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [availableAdmins, setAvailableAdmins] = useState([]);
+  const [powerLevel2Users, setPowerLevel2Users] = useState([]);
+  const [superAdminData, setSuperAdminData] = useState(null);
   const [selectedAdminId, setSelectedAdminId] = useState(null);
   const [reassigningAdmin, setReassigningAdmin] = useState(false);
 
   // Worker Groups and Projects modal states
   const [showGroupsModal, setShowGroupsModal] = useState(false);
   const [showProjectsModal, setShowProjectsModal] = useState(false);
+  const [showEmployeesListModal, setShowEmployeesListModal] = useState(false);
 
   useEffect(() => {
     loadUserDetails();
@@ -140,11 +144,11 @@ const UserDetailScreen = ({ navigation, route }) => {
     }
   };
 
-  const loadWorkers = async (adminId) => {
+  const loadWorkers = async adminId => {
     try {
       const allUsers = await getUsers();
       const adminWorkers = allUsers.filter(
-        u => u.role === ROLES.WORKER && u.adminId === adminId
+        u => u.role === ROLES.WORKER && u.adminId === adminId,
       );
       setWorkers(adminWorkers);
     } catch (error) {
@@ -152,7 +156,7 @@ const UserDetailScreen = ({ navigation, route }) => {
     }
   };
 
-  const loadWorkerStats = async (workerId) => {
+  const loadWorkerStats = async workerId => {
     try {
       // Get all work logs for this worker
       const allWorkLogs = await getWorkLogsByUser(workerId);
@@ -180,8 +184,8 @@ const UserDetailScreen = ({ navigation, route }) => {
   const loadWorkerGroups = async (workerId, orgId) => {
     try {
       const groups = await getGroupsByOrg(orgId);
-      const workerInGroups = groups.filter(group =>
-        group.workers && group.workers.includes(workerId)
+      const workerInGroups = groups.filter(
+        group => group.workers && group.workers.includes(workerId),
       );
       setWorkerGroups(workerInGroups);
     } catch (error) {
@@ -192,8 +196,8 @@ const UserDetailScreen = ({ navigation, route }) => {
   const loadAssignedProjects = async (workerId, orgId) => {
     try {
       const projects = await getProjectsByOrg(orgId);
-      const workerProjects = projects.filter(project =>
-        project.workers && project.workers.includes(workerId)
+      const workerProjects = projects.filter(
+        project => project.workers && project.workers.includes(workerId),
       );
       setAssignedProjects(workerProjects);
     } catch (error) {
@@ -201,19 +205,152 @@ const UserDetailScreen = ({ navigation, route }) => {
     }
   };
 
+  const extractPowerLevel2Roles = hierarchy => {
+    // Get direct children of root (Power Level 2)
+    if (!hierarchy || !hierarchy.children) return [];
+
+    const powerLevel2Roles = [];
+    hierarchy.children.forEach(child => {
+      // Exclude placeholder roles
+      if (child.id !== 'root' && !child.name.includes('Role-')) {
+        powerLevel2Roles.push({
+          id: child.id,
+          name: child.name,
+        });
+      }
+    });
+
+    return powerLevel2Roles;
+  };
+
+  const loadPowerLevel2Users = async () => {
+    try {
+      // Load hierarchy
+      const key = `hierarchy_${user.orgId}`;
+      const stored = await AsyncStorage.getItem(key);
+      if (!stored) return [];
+
+      const hierarchy = JSON.parse(stored);
+      const powerLevel2Roles = extractPowerLevel2Roles(hierarchy);
+
+      if (powerLevel2Roles.length === 0) return [];
+
+      // Load all users
+      const allUsers = await getUsers();
+
+      // Find users with Power Level 2 roles
+      const power2Users = [];
+      for (const pl2Role of powerLevel2Roles) {
+        const usersWithRole = allUsers.filter(
+          u =>
+            u.orgId === user.orgId &&
+            u.extraDetails?.hierarchyRole === pl2Role.name,
+        );
+
+        for (const userData of usersWithRole) {
+          // Load designation for this user
+          let designationName = 'No Designation';
+          if (userData.designationId) {
+            const des = await getDesignationById(userData.designationId);
+            if (des) designationName = des.name;
+          }
+
+          power2Users.push({
+            userId: userData.userId,
+            name: userData.name,
+            username: userData.username,
+            role: pl2Role.name,
+            designation: designationName,
+            systemRole: userData.role,
+          });
+        }
+      }
+
+      return power2Users;
+    } catch (error) {
+      console.error('Error loading Power Level 2 users:', error);
+      return [];
+    }
+  };
+
+  const loadSuperAdminData = async () => {
+    try {
+      const allUsers = await getUsers();
+      const superAdmin = allUsers.find(
+        u => u.role === ROLES.SUPER_ADMIN && u.orgId === user.orgId,
+      );
+
+      if (superAdmin) {
+        let designationName = null;
+        if (superAdmin.designationId) {
+          const des = await getDesignationById(superAdmin.designationId);
+          if (des) designationName = des.name;
+        }
+
+        return {
+          userId: superAdmin.userId,
+          name: superAdmin.name,
+          designation: designationName,
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error loading Super Admin:', error);
+      return null;
+    }
+  };
+
   const loadAdmins = async () => {
     try {
       const allUsers = await getUsers();
-      const admins = allUsers.filter(u => u.role === ROLES.ADMIN && u.orgId === user.orgId);
-      setAvailableAdmins(admins);
+      const admins = allUsers.filter(
+        u => u.role === ROLES.ADMIN && u.orgId === user.orgId,
+      );
+
+      // Load designation for each admin
+      const adminsWithDesignations = await Promise.all(
+        admins.map(async admin => {
+          let designationName = 'No Designation';
+          let roleName = 'Admin';
+
+          if (admin.designationId) {
+            const des = await getDesignationById(admin.designationId);
+            if (des) designationName = des.name;
+          }
+
+          if (admin.extraDetails?.hierarchyRole) {
+            roleName = admin.extraDetails.hierarchyRole;
+          }
+
+          return {
+            ...admin,
+            designation: designationName,
+            hierarchyRole: roleName,
+          };
+        }),
+      );
+
+      setAvailableAdmins(adminsWithDesignations);
+      return adminsWithDesignations;
     } catch (error) {
       console.error('Error loading admins:', error);
       Alert.alert('Error', 'Failed to load admins');
+      return [];
     }
   };
 
   const handleOpenAdminModal = async () => {
+    // Load Power Level 2 users
+    const pl2Users = await loadPowerLevel2Users();
+    setPowerLevel2Users(pl2Users);
+
+    // Load all admins (deduplication happens at render time)
     await loadAdmins();
+
+    // Load Super Admin data
+    const saData = await loadSuperAdminData();
+    setSuperAdminData(saData);
+
     setSelectedAdminId(user.adminId || null);
     setShowAdminModal(true);
   };
@@ -255,13 +392,15 @@ const UserDetailScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleToggleClockIn = async (value) => {
+  const handleToggleClockIn = async value => {
     try {
       setRequiresClockIn(value);
       await updateUser(userId, { requiresClockIn: value });
       Alert.alert(
         'Success',
-        `Clock-in requirement ${value ? 'enabled' : 'disabled'} for ${user.name}`
+        `Clock-in requirement ${value ? 'enabled' : 'disabled'} for ${
+          user.name
+        }`,
       );
     } catch (error) {
       console.error('Error updating clock-in requirement:', error);
@@ -275,7 +414,9 @@ const UserDetailScreen = ({ navigation, route }) => {
     if (session.role === ROLES.SUPER_ADMIN && user.adminId) {
       Alert.alert(
         'Access Denied',
-        `This worker is assigned to ${assignedAdmin?.name || 'an admin'}. Only the assigned admin can log work hours for this worker.`
+        `This worker is assigned to ${
+          assignedAdmin?.name || 'an admin'
+        }. Only the assigned admin can log work hours for this worker.`,
       );
       return;
     }
@@ -298,7 +439,7 @@ const UserDetailScreen = ({ navigation, route }) => {
         // Use manual duration
         const hours = parseInt(durationHours || '0');
         const minutes = parseInt(durationMinutes || '0');
-        calculatedHours = hours + (minutes / 60);
+        calculatedHours = hours + minutes / 60;
       } else if (endTime) {
         // Calculate from start and end time
         const diffMs = endTime.getTime() - startTime.getTime();
@@ -313,7 +454,7 @@ const UserDetailScreen = ({ navigation, route }) => {
       if (breakDuration) {
         const breakMinutes = parseInt(breakDuration);
         if (!isNaN(breakMinutes)) {
-          calculatedHours -= (breakMinutes / 60);
+          calculatedHours -= breakMinutes / 60;
         }
       }
 
@@ -338,7 +479,10 @@ const UserDetailScreen = ({ navigation, route }) => {
 
       await createWorkLog(workLogData);
 
-      Alert.alert('Success', `Work log created: ${calculatedHours.toFixed(2)} hours`);
+      Alert.alert(
+        'Success',
+        `Work log created: ${calculatedHours.toFixed(2)} hours`,
+      );
 
       // Reset modal
       setShowWorkLogModal(false);
@@ -361,18 +505,18 @@ const UserDetailScreen = ({ navigation, route }) => {
     }
   };
 
-  const formatDate = (date) => {
+  const formatDate = date => {
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
     });
   };
 
-  const formatTime = (date) => {
+  const formatTime = date => {
     return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
@@ -380,10 +524,13 @@ const UserDetailScreen = ({ navigation, route }) => {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.headerButton}
+          >
             <X color={COLORS.text} size={24} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Worker Details</Text>
+          <Text style={styles.headerTitle}>Employee Details</Text>
           <View style={{ width: 24 }} />
         </View>
         <View style={styles.loadingContainer}>
@@ -396,10 +543,13 @@ const UserDetailScreen = ({ navigation, route }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.headerButton}
+        >
           <X color={COLORS.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Worker Details</Text>
+        <Text style={styles.headerTitle}>Employee Details</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -409,10 +559,14 @@ const UserDetailScreen = ({ navigation, route }) => {
           {/* Main Profile Section - Always Visible */}
           <View style={styles.profileSection}>
             <View style={styles.avatarContainer}>
-              <View style={[
-                styles.avatarCircle,
-                user.role === ROLES.ADMIN ? styles.avatarAdmin : styles.avatarWorker
-              ]}>
+              <View
+                style={[
+                  styles.avatarCircle,
+                  user.role === ROLES.ADMIN
+                    ? styles.avatarAdmin
+                    : styles.avatarWorker,
+                ]}
+              >
                 {user.role === ROLES.ADMIN ? (
                   <ShieldCheck color={COLORS.primary} size={40} />
                 ) : (
@@ -428,23 +582,29 @@ const UserDetailScreen = ({ navigation, route }) => {
                 <View
                   style={[
                     styles.roleBadgeNew,
-                    user.role === ROLES.ADMIN ? styles.adminBadgeNew : styles.workerBadgeNew,
+                    user.role === ROLES.ADMIN
+                      ? styles.adminBadgeNew
+                      : styles.workerBadgeNew,
                   ]}
                 >
                   <Text
                     style={[
                       styles.roleBadgeTextNew,
-                      user.role === ROLES.ADMIN ? styles.adminBadgeTextNew : styles.workerBadgeTextNew,
+                      user.role === ROLES.ADMIN
+                        ? styles.adminBadgeTextNew
+                        : styles.workerBadgeTextNew,
                     ]}
                   >
-                    {ROLE_LABELS[user.role]}
+                    {user.extraDetails?.hierarchyRole || ROLE_LABELS[user.role]}
                   </Text>
                 </View>
 
                 {designation && (
                   <View style={styles.designationBadgeNew}>
                     <Briefcase color={COLORS.primary} size={14} />
-                    <Text style={styles.designationTextNew}>{designation.name}</Text>
+                    <Text style={styles.designationTextNew}>
+                      {designation.name}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -516,7 +676,9 @@ const UserDetailScreen = ({ navigation, route }) => {
               </View>
               <View style={styles.logWorkTextWrapper}>
                 <Text style={styles.logWorkButtonTitle}>Log Work Hours</Text>
-                <Text style={styles.logWorkButtonSubtitle}>Track time for projects</Text>
+                <Text style={styles.logWorkButtonSubtitle}>
+                  Track time for projects
+                </Text>
               </View>
             </View>
             <Plus color={COLORS.white} size={24} />
@@ -560,11 +722,17 @@ const UserDetailScreen = ({ navigation, route }) => {
                 <Text style={styles.actionCardSubtitle}>
                   {workerGroups.length === 0
                     ? 'No groups assigned'
-                    : `${workerGroups.length} group${workerGroups.length !== 1 ? 's' : ''}`}
+                    : `${workerGroups.length} group${
+                        workerGroups.length !== 1 ? 's' : ''
+                      }`}
                 </Text>
               </View>
             </View>
-            <ChevronDown color={COLORS.gray} size={20} style={{ transform: [{ rotate: '-90deg' }] }} />
+            <ChevronDown
+              color={COLORS.gray}
+              size={20}
+              style={{ transform: [{ rotate: '-90deg' }] }}
+            />
           </TouchableOpacity>
         )}
 
@@ -576,7 +744,12 @@ const UserDetailScreen = ({ navigation, route }) => {
             activeOpacity={0.7}
           >
             <View style={styles.actionCardLeft}>
-              <View style={[styles.actionIconContainer, { backgroundColor: COLORS.secondary + '15' }]}>
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: COLORS.secondary + '15' },
+                ]}
+              >
                 <FolderOpen color={COLORS.secondary} size={24} />
               </View>
               <View style={styles.actionTextContainer}>
@@ -584,11 +757,17 @@ const UserDetailScreen = ({ navigation, route }) => {
                 <Text style={styles.actionCardSubtitle}>
                   {assignedProjects.length === 0
                     ? 'No projects assigned'
-                    : `${assignedProjects.length} project${assignedProjects.length !== 1 ? 's' : ''}`}
+                    : `${assignedProjects.length} project${
+                        assignedProjects.length !== 1 ? 's' : ''
+                      }`}
                 </Text>
               </View>
             </View>
-            <ChevronDown color={COLORS.gray} size={20} style={{ transform: [{ rotate: '-90deg' }] }} />
+            <ChevronDown
+              color={COLORS.gray}
+              size={20}
+              style={{ transform: [{ rotate: '-90deg' }] }}
+            />
           </TouchableOpacity>
         )}
 
@@ -615,7 +794,9 @@ const UserDetailScreen = ({ navigation, route }) => {
               </View>
               <View style={styles.workerInfo}>
                 <Text style={styles.workerName}>{assignedAdmin.name}</Text>
-                <Text style={styles.workerUsername}>@{assignedAdmin.username}</Text>
+                <Text style={styles.workerUsername}>
+                  @{assignedAdmin.username}
+                </Text>
               </View>
             </View>
           </View>
@@ -661,7 +842,10 @@ const UserDetailScreen = ({ navigation, route }) => {
             <Switch
               value={requiresClockIn}
               onValueChange={handleToggleClockIn}
-              trackColor={{ false: COLORS.lightGray, true: COLORS.primary + '50' }}
+              trackColor={{
+                false: COLORS.lightGray,
+                true: COLORS.primary + '50',
+              }}
               thumbColor={requiresClockIn ? COLORS.primary : COLORS.gray}
             />
           </View>
@@ -670,15 +854,24 @@ const UserDetailScreen = ({ navigation, route }) => {
         {/* Workers List for Admins */}
         {user.role === ROLES.ADMIN && (
           <View style={styles.card}>
-            <View style={styles.cardHeader}>
+            <TouchableOpacity
+              style={styles.cardHeader}
+              onPress={() => setShowEmployeesListModal(true)}
+              activeOpacity={0.7}
+            >
               <Users color={COLORS.secondary} size={24} />
-              <Text style={styles.cardTitle}>Assigned Workers</Text>
-            </View>
+              <Text style={styles.cardTitle}>Employees under {user.name}</Text>
+              <ChevronDown
+                color={COLORS.gray}
+                size={20}
+                style={{ transform: [{ rotate: '-90deg' }] }}
+              />
+            </TouchableOpacity>
 
             {workers.length === 0 ? (
               <View style={styles.emptyState}>
                 <Users color={COLORS.gray} size={40} />
-                <Text style={styles.emptyText}>No workers assigned</Text>
+                <Text style={styles.emptyText}>No workers Assigned</Text>
                 <Text style={styles.emptySubtext}>
                   Workers will appear here when assigned to this admin
                 </Text>
@@ -686,16 +879,19 @@ const UserDetailScreen = ({ navigation, route }) => {
             ) : (
               <>
                 <Text style={styles.workersCount}>
-                  {workers.length} worker{workers.length !== 1 ? 's' : ''} assigned
+                  {workers.length} worker{workers.length !== 1 ? 's' : ''}{' '}
+                  assigned
                 </Text>
-                {workers.map((worker) => (
+                {workers.map(worker => (
                   <View key={worker.userId} style={styles.workerItem}>
                     <View style={styles.workerIconContainer}>
                       <User color={COLORS.secondary} size={18} />
                     </View>
                     <View style={styles.workerInfo}>
                       <Text style={styles.workerName}>{worker.name}</Text>
-                      <Text style={styles.workerUsername}>@{worker.username}</Text>
+                      <Text style={styles.workerUsername}>
+                        @{worker.username}
+                      </Text>
                     </View>
                   </View>
                 ))}
@@ -758,12 +954,19 @@ const UserDetailScreen = ({ navigation, route }) => {
                 onPress={() => setShowProjectModal(true)}
                 activeOpacity={0.7}
               >
-                <FolderOpen color={selectedProject ? COLORS.secondary : COLORS.gray} size={20} />
-                <Text style={[
-                  styles.selectButtonText,
-                  selectedProject && styles.selectButtonTextSelected
-                ]}>
-                  {selectedProject ? selectedProject.projectName : 'Select Project'}
+                <FolderOpen
+                  color={selectedProject ? COLORS.secondary : COLORS.gray}
+                  size={20}
+                />
+                <Text
+                  style={[
+                    styles.selectButtonText,
+                    selectedProject && styles.selectButtonTextSelected,
+                  ]}
+                >
+                  {selectedProject
+                    ? selectedProject.projectName
+                    : 'Select Project'}
                 </Text>
               </TouchableOpacity>
 
@@ -776,7 +979,9 @@ const UserDetailScreen = ({ navigation, route }) => {
                     onPress={() => setShowStartDatePicker(true)}
                   >
                     <Calendar color={COLORS.primary} size={18} />
-                    <Text style={styles.smallButtonText}>{formatDate(startDate)}</Text>
+                    <Text style={styles.smallButtonText}>
+                      {formatDate(startDate)}
+                    </Text>
                   </TouchableOpacity>
                   {showStartDatePicker && (
                     <DateTimePicker
@@ -801,7 +1006,9 @@ const UserDetailScreen = ({ navigation, route }) => {
                     onPress={() => setShowStartTimePicker(true)}
                   >
                     <Timer color={COLORS.primary} size={18} />
-                    <Text style={styles.smallButtonText}>{formatTime(startTime)}</Text>
+                    <Text style={styles.smallButtonText}>
+                      {formatTime(startTime)}
+                    </Text>
                   </TouchableOpacity>
                   {showStartTimePicker && (
                     <DateTimePicker
@@ -823,7 +1030,9 @@ const UserDetailScreen = ({ navigation, route }) => {
                   <Text style={styles.sectionTitle}>End Date</Text>
                   <View style={styles.endDateDisplay}>
                     <Calendar color={COLORS.textLight} size={18} />
-                    <Text style={styles.endDateText}>{formatDate(endDate)}</Text>
+                    <Text style={styles.endDateText}>
+                      {formatDate(endDate)}
+                    </Text>
                     <TouchableOpacity
                       style={styles.changeButton}
                       onPress={() => setShowEndDatePicker(true)}
@@ -851,7 +1060,8 @@ const UserDetailScreen = ({ navigation, route }) => {
                   style={[
                     styles.orButton,
                     endTime && styles.orButtonSelected,
-                    (durationHours || durationMinutes) && styles.orButtonDisabled
+                    (durationHours || durationMinutes) &&
+                      styles.orButtonDisabled,
                   ]}
                   onPress={() => {
                     if (!durationHours && !durationMinutes) {
@@ -861,12 +1071,24 @@ const UserDetailScreen = ({ navigation, route }) => {
                   activeOpacity={0.7}
                   disabled={!!(durationHours || durationMinutes)}
                 >
-                  <Timer color={endTime ? COLORS.white : (durationHours || durationMinutes) ? COLORS.gray : COLORS.primary} size={18} />
-                  <Text style={[
-                    styles.orButtonText,
-                    endTime && styles.orButtonTextSelected,
-                    (durationHours || durationMinutes) && styles.orButtonTextDisabled
-                  ]}>
+                  <Timer
+                    color={
+                      endTime
+                        ? COLORS.white
+                        : durationHours || durationMinutes
+                        ? COLORS.gray
+                        : COLORS.primary
+                    }
+                    size={18}
+                  />
+                  <Text
+                    style={[
+                      styles.orButtonText,
+                      endTime && styles.orButtonTextSelected,
+                      (durationHours || durationMinutes) &&
+                        styles.orButtonTextDisabled,
+                    ]}
+                  >
                     {endTime ? formatTime(endTime) : 'End Time'}
                   </Text>
                 </TouchableOpacity>
@@ -876,8 +1098,9 @@ const UserDetailScreen = ({ navigation, route }) => {
                 <TouchableOpacity
                   style={[
                     styles.orButton,
-                    (durationHours || durationMinutes) && styles.orButtonSelected,
-                    endTime && styles.orButtonDisabled
+                    (durationHours || durationMinutes) &&
+                      styles.orButtonSelected,
+                    endTime && styles.orButtonDisabled,
                   ]}
                   onPress={() => {
                     if (!endTime) {
@@ -887,13 +1110,25 @@ const UserDetailScreen = ({ navigation, route }) => {
                   activeOpacity={0.7}
                   disabled={!!endTime}
                 >
-                  <Clock color={(durationHours || durationMinutes) ? COLORS.white : endTime ? COLORS.gray : COLORS.primary} size={18} />
-                  <Text style={[
-                    styles.orButtonText,
-                    (durationHours || durationMinutes) && styles.orButtonTextSelected,
-                    endTime && styles.orButtonTextDisabled
-                  ]}>
-                    {(durationHours || durationMinutes)
+                  <Clock
+                    color={
+                      durationHours || durationMinutes
+                        ? COLORS.white
+                        : endTime
+                        ? COLORS.gray
+                        : COLORS.primary
+                    }
+                    size={18}
+                  />
+                  <Text
+                    style={[
+                      styles.orButtonText,
+                      (durationHours || durationMinutes) &&
+                        styles.orButtonTextSelected,
+                      endTime && styles.orButtonTextDisabled,
+                    ]}
+                  >
+                    {durationHours || durationMinutes
                       ? `${durationHours || '00'}:${durationMinutes || '00'}`
                       : 'Duration'}
                   </Text>
@@ -920,7 +1155,11 @@ const UserDetailScreen = ({ navigation, route }) => {
               {/* Break Duration (Optional) */}
               <Text style={styles.sectionTitle}>Break Duration (Optional)</Text>
               <View style={styles.breakInputContainer}>
-                <Coffee color={COLORS.gray} size={20} style={styles.inputIcon} />
+                <Coffee
+                  color={COLORS.gray}
+                  size={20}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={styles.breakInput}
                   placeholder="Break in minutes (e.g., 30)"
@@ -933,7 +1172,10 @@ const UserDetailScreen = ({ navigation, route }) => {
 
               {/* Submit Button */}
               <TouchableOpacity
-                style={[styles.submitButton, loggingWork && styles.submitButtonDisabled]}
+                style={[
+                  styles.submitButton,
+                  loggingWork && styles.submitButtonDisabled,
+                ]}
                 onPress={handleLogWork}
                 disabled={loggingWork}
               >
@@ -962,7 +1204,10 @@ const UserDetailScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={true} style={styles.selectionScroll}>
+            <ScrollView
+              showsVerticalScrollIndicator={true}
+              style={styles.selectionScroll}
+            >
               {assignedProjects.length === 0 ? (
                 <View style={styles.emptyState}>
                   <FolderOpen color={COLORS.gray} size={48} />
@@ -972,12 +1217,13 @@ const UserDetailScreen = ({ navigation, route }) => {
                   </Text>
                 </View>
               ) : (
-                assignedProjects.map((project) => (
+                assignedProjects.map(project => (
                   <TouchableOpacity
                     key={project.projectId}
                     style={[
                       styles.selectionItem,
-                      selectedProject?.projectId === project.projectId && styles.selectionItemSelected
+                      selectedProject?.projectId === project.projectId &&
+                        styles.selectionItemSelected,
                     ]}
                     onPress={() => {
                       setSelectedProject(project);
@@ -989,9 +1235,13 @@ const UserDetailScreen = ({ navigation, route }) => {
                       <FolderOpen color={COLORS.secondary} size={20} />
                     </View>
                     <View style={styles.selectionInfo}>
-                      <Text style={styles.selectionText}>{project.projectName}</Text>
+                      <Text style={styles.selectionText}>
+                        {project.projectName}
+                      </Text>
                       {project.description && (
-                        <Text style={styles.selectionSubtext}>{project.description}</Text>
+                        <Text style={styles.selectionSubtext}>
+                          {project.description}
+                        </Text>
                       )}
                     </View>
                   </TouchableOpacity>
@@ -1095,7 +1345,8 @@ const UserDetailScreen = ({ navigation, route }) => {
             </View>
 
             <Text style={styles.modalSubtitle}>
-              Select an admin to assign this worker, or choose "Super Admin" for direct reporting.
+              Select a manager to assign this worker. Choose from Super Admin,
+              management roles, or team leads.
             </Text>
 
             {/* Scrollable Admin List */}
@@ -1113,18 +1364,27 @@ const UserDetailScreen = ({ navigation, route }) => {
                 activeOpacity={0.7}
               >
                 <View style={styles.adminItemContent}>
-                  <View style={[styles.adminIconContainer, { backgroundColor: COLORS.primary + '15' }]}>
+                  <View
+                    style={[
+                      styles.adminIconContainer,
+                      { backgroundColor: COLORS.primary + '15' },
+                    ]}
+                  >
                     <ShieldCheck color={COLORS.primary} size={20} />
                   </View>
                   <View style={styles.adminInfo}>
-                    <Text style={[
-                      styles.adminItemText,
-                      selectedAdminId === null && styles.adminItemTextSelected
-                    ]}>
+                    <Text
+                      style={[
+                        styles.adminItemText,
+                        selectedAdminId === null &&
+                          styles.adminItemTextSelected,
+                      ]}
+                    >
                       Super Admin (Direct)
                     </Text>
                     <Text style={styles.adminItemSubtext}>
-                      Reports directly to Super Admin
+                      {superAdminData?.designation ||
+                        'Reports directly to Super Admin'}
                     </Text>
                   </View>
                 </View>
@@ -1135,27 +1395,107 @@ const UserDetailScreen = ({ navigation, route }) => {
                   ]}
                 >
                   {selectedAdminId === null && (
-                    <Circle color={COLORS.primary} size={12} fill={COLORS.primary} />
+                    <Circle
+                      color={COLORS.primary}
+                      size={12}
+                      fill={COLORS.primary}
+                    />
                   )}
                 </View>
               </TouchableOpacity>
 
+              {/* Power Level 2 Users */}
+              {powerLevel2Users.length > 0 &&
+                powerLevel2Users.map(pl2User => (
+                  <TouchableOpacity
+                    key={pl2User.userId}
+                    style={[
+                      styles.adminItem,
+                      selectedAdminId === pl2User.userId &&
+                        styles.adminItemSelected,
+                    ]}
+                    onPress={() => setSelectedAdminId(pl2User.userId)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.adminItemContent}>
+                      <View style={styles.adminIconContainer}>
+                        <ShieldCheck color={COLORS.primary} size={20} />
+                      </View>
+                      <View style={styles.adminInfo}>
+                        <Text
+                          style={[
+                            styles.adminItemText,
+                            selectedAdminId === pl2User.userId &&
+                              styles.adminItemTextSelected,
+                          ]}
+                        >
+                          {pl2User.name}
+                        </Text>
+                        <View style={styles.badgesContainer}>
+                          <View style={styles.rolePill}>
+                            <Text style={styles.rolePillText}>
+                              {pl2User.role}
+                            </Text>
+                          </View>
+                          <View style={styles.designationPill}>
+                            <Text style={styles.designationPillText}>
+                              {pl2User.designation}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                    <View
+                      style={[
+                        styles.radioButton,
+                        selectedAdminId === pl2User.userId &&
+                          styles.radioButtonSelected,
+                      ]}
+                    >
+                      {selectedAdminId === pl2User.userId && (
+                        <Circle
+                          color={COLORS.primary}
+                          size={12}
+                          fill={COLORS.primary}
+                        />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+
               {/* Admin List */}
-              {availableAdmins.length === 0 ? (
-                <View style={styles.emptyAdminState}>
-                  <ShieldCheck color={COLORS.gray} size={48} />
-                  <Text style={styles.emptyAdminText}>No admins available</Text>
-                  <Text style={styles.emptyAdminSubtext}>
-                    Create an admin account to assign workers
-                  </Text>
-                </View>
-              ) : (
-                availableAdmins.map((admin) => (
+              {(() => {
+                // Deduplicate at render time: filter out admins already in Power Level 2
+                const pl2UserIds = powerLevel2Users.map(u => u.userId);
+                const filteredAdmins = availableAdmins.filter(
+                  admin => !pl2UserIds.includes(admin.userId),
+                );
+
+                if (
+                  filteredAdmins.length === 0 &&
+                  powerLevel2Users.length === 0
+                ) {
+                  return (
+                    <View style={styles.emptyAdminState}>
+                      <ShieldCheck color={COLORS.gray} size={48} />
+                      <Text style={styles.emptyAdminText}>
+                        No managers available
+                      </Text>
+                      <Text style={styles.emptyAdminSubtext}>
+                        Create team members with management roles to assign
+                        workers
+                      </Text>
+                    </View>
+                  );
+                }
+
+                return filteredAdmins.map(admin => (
                   <TouchableOpacity
                     key={admin.userId}
                     style={[
                       styles.adminItem,
-                      selectedAdminId === admin.userId && styles.adminItemSelected,
+                      selectedAdminId === admin.userId &&
+                        styles.adminItemSelected,
                     ]}
                     onPress={() => setSelectedAdminId(admin.userId)}
                     activeOpacity={0.7}
@@ -1165,28 +1505,47 @@ const UserDetailScreen = ({ navigation, route }) => {
                         <ShieldCheck color={COLORS.primary} size={20} />
                       </View>
                       <View style={styles.adminInfo}>
-                        <Text style={[
-                          styles.adminItemText,
-                          selectedAdminId === admin.userId && styles.adminItemTextSelected
-                        ]}>
+                        <Text
+                          style={[
+                            styles.adminItemText,
+                            selectedAdminId === admin.userId &&
+                              styles.adminItemTextSelected,
+                          ]}
+                        >
                           {admin.name}
                         </Text>
-                        <Text style={styles.adminItemSubtext}>@{admin.username}</Text>
+                        <View style={styles.badgesContainer}>
+                          <View style={styles.rolePill}>
+                            <Text style={styles.rolePillText}>
+                              {admin.hierarchyRole}
+                            </Text>
+                          </View>
+                          <View style={styles.designationPill}>
+                            <Text style={styles.designationPillText}>
+                              {admin.designation}
+                            </Text>
+                          </View>
+                        </View>
                       </View>
                     </View>
                     <View
                       style={[
                         styles.radioButton,
-                        selectedAdminId === admin.userId && styles.radioButtonSelected,
+                        selectedAdminId === admin.userId &&
+                          styles.radioButtonSelected,
                       ]}
                     >
                       {selectedAdminId === admin.userId && (
-                        <Circle color={COLORS.primary} size={12} fill={COLORS.primary} />
+                        <Circle
+                          color={COLORS.primary}
+                          size={12}
+                          fill={COLORS.primary}
+                        />
                       )}
                     </View>
                   </TouchableOpacity>
-                ))
-              )}
+                ));
+              })()}
             </ScrollView>
 
             {/* Action Buttons */}
@@ -1200,7 +1559,7 @@ const UserDetailScreen = ({ navigation, route }) => {
               <TouchableOpacity
                 style={[
                   styles.adminModalConfirmButton,
-                  reassigningAdmin && styles.adminModalConfirmButtonDisabled
+                  reassigningAdmin && styles.adminModalConfirmButtonDisabled,
                 ]}
                 onPress={handleReassignAdmin}
                 disabled={reassigningAdmin}
@@ -1243,13 +1602,15 @@ const UserDetailScreen = ({ navigation, route }) => {
                   </Text>
                 </View>
               ) : (
-                workerGroups.map((group) => (
+                workerGroups.map(group => (
                   <View key={group.groupId} style={styles.listModalItem}>
                     <View style={styles.listModalIconContainer}>
                       <Users color={COLORS.primary} size={20} />
                     </View>
                     <View style={styles.listModalInfo}>
-                      <Text style={styles.listModalItemTitle}>{group.name}</Text>
+                      <Text style={styles.listModalItemTitle}>
+                        {group.name}
+                      </Text>
                       <Text style={styles.listModalItemSubtitle}>
                         {group.description || 'No description'}
                       </Text>
@@ -1285,24 +1646,99 @@ const UserDetailScreen = ({ navigation, route }) => {
               {assignedProjects.length === 0 ? (
                 <View style={styles.emptyModalState}>
                   <FolderOpen color={COLORS.gray} size={64} />
-                  <Text style={styles.emptyModalText}>No projects assigned</Text>
+                  <Text style={styles.emptyModalText}>
+                    No projects assigned
+                  </Text>
                   <Text style={styles.emptyModalSubtext}>
                     This worker is not assigned to any projects yet
                   </Text>
                 </View>
               ) : (
-                assignedProjects.map((project) => (
+                assignedProjects.map(project => (
                   <View key={project.projectId} style={styles.listModalItem}>
-                    <View style={[styles.listModalIconContainer, { backgroundColor: COLORS.secondary + '15' }]}>
+                    <View
+                      style={[
+                        styles.listModalIconContainer,
+                        { backgroundColor: COLORS.secondary + '15' },
+                      ]}
+                    >
                       <FolderOpen color={COLORS.secondary} size={20} />
                     </View>
                     <View style={styles.listModalInfo}>
-                      <Text style={styles.listModalItemTitle}>{project.name}</Text>
+                      <Text style={styles.listModalItemTitle}>
+                        {project.name}
+                      </Text>
                       <Text style={styles.listModalItemSubtitle}>
                         {project.description || 'No description'}
                       </Text>
                     </View>
                   </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Employees List Modal */}
+      <Modal
+        visible={showEmployeesListModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEmployeesListModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.listModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Employees under {user.name}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowEmployeesListModal(false)}
+              >
+                <X color={COLORS.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.listModalScroll}
+              showsVerticalScrollIndicator={true}
+            >
+              {workers.length === 0 ? (
+                <View style={styles.emptyModalState}>
+                  <Users color={COLORS.gray} size={64} />
+                  <Text style={styles.emptyModalText}>
+                    No Employees assigned
+                  </Text>
+                  <Text style={styles.emptyModalSubtext}>
+                    Employees will appear here when assigned to {user.name}
+                  </Text>
+                </View>
+              ) : (
+                workers.map(worker => (
+                  <TouchableOpacity
+                    key={worker.userId}
+                    style={styles.listModalItem}
+                    onPress={() => {
+                      setShowEmployeesListModal(false);
+                      navigation.navigate('UserDetail', {
+                        userId: worker.userId,
+                      });
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.listModalIconContainer}>
+                      <User color={COLORS.secondary} size={20} />
+                    </View>
+                    <View style={styles.listModalInfo}>
+                      <Text style={styles.listModalItemTitle}>
+                        {worker.name}
+                      </Text>
+                      <Text style={styles.listModalItemSubtitle}>
+                        @{worker.username}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
                 ))
               )}
             </ScrollView>
@@ -2285,6 +2721,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 20,
+  },
+  badgesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    flexWrap: 'wrap',
+  },
+  rolePill: {
+    backgroundColor: COLORS.primary + '15',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  rolePillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  designationPill: {
+    backgroundColor: COLORS.secondary + '15',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  designationPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.secondary,
   },
 });
 

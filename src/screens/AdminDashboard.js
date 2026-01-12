@@ -155,16 +155,16 @@ const AdminDashboard = ({ navigation }) => {
   const menuItems = [
     {
       animation: require('../assets/json/Workers.json'),
-      title: 'Workers',
+      title: 'Employees',
       subtitle: 'Manage your team',
       icon: '👥',
       color: '#6366F1',
       bgColor: '#EEF2FF',
-      onPress: () => navigation.navigate('WorkersList'),
+      onPress: () => navigation.navigate('Employees'),
     },
     {
       animation: require('../assets/json/Worker_Groups.json'),
-      title: 'Worker Groups',
+      title: 'Employees Groups',
       subtitle: 'Team organization',
       icon: '🔷',
       color: '#EC4899',
@@ -209,7 +209,7 @@ const AdminDashboard = ({ navigation }) => {
                 <Text style={styles.userName}>{session?.name || 'Admin'}</Text>
                 <View style={styles.adminBadge}>
                   <Sparkles color="#F59E0B" size={11} />
-                  <Text style={styles.adminText}>Administrator</Text>
+                  <Text style={styles.adminText}>{session?.designation || 'Admin'}</Text>
                 </View>
               </View>
             </View>

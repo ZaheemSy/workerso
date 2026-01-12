@@ -22,6 +22,7 @@ import {
   Play,
   Sparkles,
   Heart,
+  GitBranch,
 } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,25 +46,11 @@ const SuperAdminDashboard = ({ navigation }) => {
 
   const menuItems = [
     {
-      icon: UserCog,
-      title: 'Create Admin',
-      subtitle: 'Add new admin accounts',
-      color: COLORS.primary,
-      onPress: () => navigation.navigate('CreateAdmin'),
-    },
-    {
-      icon: UserPlus,
-      title: 'Workers',
-      subtitle: 'View and manage workers',
-      color: COLORS.success,
-      onPress: () => navigation.navigate('WorkersList'),
-    },
-    {
-      icon: Users,
-      title: 'Worker Groups',
-      subtitle: 'Manage worker teams',
-      color: COLORS.secondary,
-      onPress: () => navigation.navigate('WorkerGroupsList'),
+      icon: GitBranch,
+      title: 'Hierarchy Manager',
+      subtitle: 'Define power structure',
+      color: '#8B5CF6',
+      onPress: () => navigation.navigate('HierarchyManager'),
     },
     {
       icon: Award,
@@ -71,6 +58,20 @@ const SuperAdminDashboard = ({ navigation }) => {
       subtitle: 'Manage job titles',
       color: COLORS.primary,
       onPress: () => navigation.navigate('Designations'),
+    },
+    {
+      icon: UserPlus,
+      title: 'Employees',
+      subtitle: 'Manage all employees',
+      color: COLORS.success,
+      onPress: () => navigation.navigate('Employees'),
+    },
+    {
+      icon: Users,
+      title: 'Employees Groups',
+      subtitle: 'Manage employee teams',
+      color: COLORS.secondary,
+      onPress: () => navigation.navigate('WorkerGroupsList'),
     },
     {
       icon: Briefcase,
@@ -120,7 +121,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 </Text>
                 <View style={styles.adminBadge}>
                   <Shield color="#DC2626" size={11} fill="#DC2626" />
-                  <Text style={styles.adminText}>Super Admin</Text>
+                  <Text style={styles.adminText}>{session?.designation || 'Super Admin'}</Text>
                 </View>
               </View>
             </View>
@@ -170,13 +171,13 @@ const SuperAdminDashboard = ({ navigation }) => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <TouchableOpacity
           style={styles.adminWorkersCard}
-          onPress={() => navigation.navigate('AdminsAndWorkers')}
+          onPress={() => navigation.navigate('Pending')}
           activeOpacity={0.7}
         >
           <Users color="#8B5CF6" size={22} />
-          <Text style={styles.adminWorkersTitle}>Admins & Workers</Text>
+          <Text style={styles.adminWorkersTitle}>Pending</Text>
           <Text style={styles.adminWorkersSeparator}>•</Text>
-          <Text style={styles.adminWorkersSubtitle}>See all employees</Text>
+          <Text style={styles.adminWorkersSubtitle}>View pending items</Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>Administration</Text>

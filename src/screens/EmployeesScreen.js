@@ -12,7 +12,19 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { X, Plus, User, Mail, Phone, Lock, UserPlus, Briefcase, Circle, Search, ChevronRight } from 'lucide-react-native';
+import {
+  X,
+  Plus,
+  User,
+  Mail,
+  Phone,
+  Lock,
+  UserPlus,
+  Briefcase,
+  Circle,
+  Search,
+  ChevronRight,
+} from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,14 +34,20 @@ import {
   getDesignationsByOrg,
   createDesignation,
 } from '../services/storageService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const WorkersListScreen = ({ navigation }) => {
+const EmployeesScreen = ({ navigation }) => {
   const { session } = useAuth();
-  const [workers, setWorkers] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDesignationModal, setShowDesignationModal] = useState(false);
+  const [showRoleModal, setShowRoleModal] = useState(false);
   const [designations, setDesignations] = useState([]);
+  const [filteredDesignations, setFilteredDesignations] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [selectedRole, setSelectedRole] = useState(null);
   const [selectedDesignationId, setSelectedDesignationId] = useState(null);
   const [showNewDesignationInput, setShowNewDesignationInput] = useState(false);
   const [newDesignationName, setNewDesignationName] = useState('');
@@ -45,18 +63,21 @@ const WorkersListScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadWorkers();
+    loadEmployees();
     loadDesignations();
+    loadRoles();
   }, []);
 
-  const loadWorkers = async () => {
+  const loadEmployees = async () => {
     try {
       const allUsers = await getUsersByOrg(session.orgId);
-      // Show all workers regardless of role
-      const workersList = allUsers.filter(user => user.role === ROLES.WORKER);
-      setWorkers(workersList);
+      // Show all team members (both workers and admins)
+      const teamMembersList = allUsers.filter(
+        user => user.role === ROLES.WORKER || user.role === ROLES.ADMIN,
+      );
+      setEmployees(teamMembersList);
     } catch (error) {
-      console.error('Error loading workers:', error);
+      console.error('Error loading employees:', error);
     }
   };
 
@@ -69,11 +90,63 @@ const WorkersListScreen = ({ navigation }) => {
     }
   };
 
+  const loadRoles = async () => {
+    try {
+      const key = `hierarchy_${session.orgId}`;
+      const stored = await AsyncStorage.getItem(key);
+      if (stored) {
+        const hierarchy = JSON.parse(stored);
+        const extractedRoles = extractRolesFromTree(hierarchy);
+        setRoles(extractedRoles);
+      }
+    } catch (error) {
+      console.error('Error loading roles:', error);
+    }
+  };
+
+  const extractRolesFromTree = node => {
+    let rolesList = [];
+
+    // Add current node (except root and placeholder roles)
+    if (node.id !== 'root' && !node.name.includes('Role-')) {
+      rolesList.push({
+        id: node.id,
+        name: node.name,
+      });
+    }
+
+    // Recursively add children
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(child => {
+        rolesList = rolesList.concat(extractRolesFromTree(child));
+      });
+    }
+
+    return rolesList;
+  };
+
+  // Filter designations when role changes
+  useEffect(() => {
+    if (selectedRole) {
+      const filtered = designations.filter(
+        d => d.roleName === selectedRole.name,
+      );
+      setFilteredDesignations(filtered);
+    } else {
+      setFilteredDesignations([]);
+    }
+  }, [selectedRole, designations]);
+
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleAddNewDesignation = async () => {
+    if (!selectedRole) {
+      Alert.alert('Error', 'Please select a role first');
+      return;
+    }
+
     if (!newDesignationName.trim()) {
       Alert.alert('Error', 'Please enter designation name');
       return;
@@ -83,6 +156,8 @@ const WorkersListScreen = ({ navigation }) => {
       const newDes = await createDesignation({
         orgId: session.orgId,
         name: newDesignationName.trim(),
+        roleId: selectedRole.id,
+        roleName: selectedRole.name,
         createdBy: session.userId,
       });
 
@@ -98,10 +173,19 @@ const WorkersListScreen = ({ navigation }) => {
   };
 
   const validateForm = () => {
-    const { name, email, phone, username, password, confirmPassword } = formData;
+    const { name, email, phone, username, password, confirmPassword } =
+      formData;
 
+    if (!selectedRole) {
+      Alert.alert('Error', 'Please select a role');
+      return false;
+    }
+    if (!selectedDesignationId) {
+      Alert.alert('Error', 'Please select a designation');
+      return false;
+    }
     if (!name.trim()) {
-      Alert.alert('Error', 'Please enter worker name');
+      Alert.alert('Error', 'Please enter employee name');
       return false;
     }
     if (!email.trim() || !email.includes('@')) {
@@ -128,20 +212,26 @@ const WorkersListScreen = ({ navigation }) => {
     return true;
   };
 
-  const handleAddWorker = async () => {
+  const handleAddEmployee = async () => {
     if (!validateForm()) return;
 
     setLoading(true);
     try {
+      // Auto-map hierarchy role to system permission
+      let systemRole = ROLES.WORKER; // Default
+      if (selectedRole.name === 'Admin') {
+        systemRole = ROLES.ADMIN; // Grant admin permissions
+      }
+
       // Determine adminId based on user role
       let assignedAdminId = null;
       if (session.role === ROLES.ADMIN) {
         assignedAdminId = session.userId;
       }
 
-      const worker = await createUser({
+      const employee = await createUser({
         orgId: session.orgId,
-        role: ROLES.WORKER,
+        role: systemRole, // System permission level
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
         phone: formData.phone.trim(),
@@ -150,11 +240,13 @@ const WorkersListScreen = ({ navigation }) => {
         adminId: assignedAdminId,
         designationId: selectedDesignationId,
         createdBy: session.userId,
-        extraDetails: {},
+        extraDetails: {
+          hierarchyRole: selectedRole.name, // Organizational role
+        },
       });
 
-      if (!worker) {
-        throw new Error('Failed to create worker');
+      if (!employee) {
+        throw new Error('Failed to create team member');
       }
 
       setLoading(false);
@@ -167,47 +259,74 @@ const WorkersListScreen = ({ navigation }) => {
         password: '',
         confirmPassword: '',
       });
+      setSelectedRole(null);
       setSelectedDesignationId(null);
 
-      await loadWorkers();
+      await loadEmployees();
 
+      const roleType = systemRole === ROLES.ADMIN ? 'admin' : 'team member';
       Alert.alert(
         'Success!',
-        `Worker account created successfully.\n\nUsername: ${worker.username}\nPassword: ${formData.password}\n\nPlease share these credentials with the worker.`,
+        `${
+          roleType.charAt(0).toUpperCase() + roleType.slice(1)
+        } account created successfully.\n\nUsername: ${
+          employee.username
+        }\nPassword: ${
+          formData.password
+        }\n\nPlease share these credentials with the user.`,
       );
     } catch (error) {
       setLoading(false);
-      Alert.alert('Error', error.message || 'Failed to create worker account');
-      console.error('Add worker error:', error);
+      Alert.alert('Error', error.message || 'Failed to create account');
+      console.error('Add employee error:', error);
     }
   };
 
-  const getDesignationName = (designationId) => {
-    const designation = designations.find(d => d.designationId === designationId);
+  const getDesignationName = designationId => {
+    const designation = designations.find(
+      d => d.designationId === designationId,
+    );
     return designation ? designation.name : 'Not Assigned';
   };
 
   const getSelectedDesignationName = () => {
     if (!selectedDesignationId) return 'Select Designation';
-    const designation = designations.find(d => d.designationId === selectedDesignationId);
+    const designation = designations.find(
+      d => d.designationId === selectedDesignationId,
+    );
     return designation ? designation.name : 'Select Designation';
   };
 
-  const handleSelectDesignation = (designationId) => {
+  const handleSelectDesignation = designationId => {
     setSelectedDesignationId(designationId);
     setShowDesignationModal(false);
   };
 
-  const filteredWorkers = workers.filter((worker) => {
-    const query = searchQuery.toLowerCase();
-    const name = worker.name?.toLowerCase() || '';
-    const username = worker.username?.toLowerCase() || '';
-    const designation = getDesignationName(worker.designationId).toLowerCase();
+  const filteredEmployees = employees.filter(employee => {
+    // Filter by tab
+    if (activeTab === 'admins') {
+      if (employee.role !== ROLES.ADMIN) return false;
+    } else if (activeTab === 'others') {
+      if (employee.role !== ROLES.WORKER) return false;
+    }
+    // 'all' tab shows everyone
 
-    return name.includes(query) || username.includes(query) || designation.includes(query);
+    // Filter by search query
+    const query = searchQuery.toLowerCase();
+    const name = employee.name?.toLowerCase() || '';
+    const username = employee.username?.toLowerCase() || '';
+    const designation = getDesignationName(
+      employee.designationId,
+    ).toLowerCase();
+
+    return (
+      name.includes(query) ||
+      username.includes(query) ||
+      designation.includes(query)
+    );
   });
 
-  const renderWorker = ({ item }) => (
+  const renderEmployee = ({ item }) => (
     <TouchableOpacity
       style={styles.workerCard}
       onPress={() => navigation.navigate('UserDetail', { userId: item.userId })}
@@ -217,12 +336,42 @@ const WorkersListScreen = ({ navigation }) => {
         <User color={COLORS.secondary} size={20} />
       </View>
       <View style={styles.workerInfo}>
-        <Text style={styles.workerName}>{item.name}</Text>
-        <Text style={styles.workerUsername}>@{item.username}</Text>
+        <Text style={styles.workerName}>
+          <Text
+            style={[styles.workerName, { fontWeight: '400', fontSize: 12 }]}
+          >
+            Name:{' '}
+          </Text>
+
+          {item.name}
+        </Text>
+        <Text style={styles.workerUsername}>
+          <Text
+            style={[styles.workerName, { fontWeight: '400', fontSize: 12 }]}
+          >
+            Username:{' '}
+          </Text>{' '}
+          {item.username}
+        </Text>
         {item.designationId && (
-          <View style={styles.designationBadge}>
-            <Briefcase color={COLORS.primary} size={12} />
-            <Text style={styles.designationText}>{getDesignationName(item.designationId)}</Text>
+          <View
+            style={[
+              styles.designationBadge,
+              item.role === ROLES.ADMIN && styles.designationBadgeAdmin,
+            ]}
+          >
+            <Briefcase
+              color={item.role === ROLES.ADMIN ? '#DC2626' : COLORS.primary}
+              size={12}
+            />
+            <Text
+              style={[
+                styles.designationText,
+                item.role === ROLES.ADMIN && styles.designationTextAdmin,
+              ]}
+            >
+              {getDesignationName(item.designationId)}
+            </Text>
           </View>
         )}
       </View>
@@ -232,10 +381,13 @@ const WorkersListScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.headerButton}
+        >
           <X color={COLORS.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Workers</Text>
+        <Text style={styles.headerTitle}>Employees</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -245,7 +397,7 @@ const WorkersListScreen = ({ navigation }) => {
           <Search color={COLORS.gray} size={20} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search workers by name, username or designation..."
+            placeholder="Search employees by name, username or designation..."
             placeholderTextColor={COLORS.gray}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -257,15 +409,108 @@ const WorkersListScreen = ({ navigation }) => {
           )}
         </View>
 
-        {workers.length === 0 ? (
+        {/* Tabs */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'all' && styles.activeTab]}
+            onPress={() => setActiveTab('all')}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'all' && styles.activeTabText,
+              ]}
+            >
+              All
+            </Text>
+            <View
+              style={[
+                styles.tabBadge,
+                activeTab === 'all' && styles.activeTabBadge,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabBadgeText,
+                  activeTab === 'all' && styles.activeTabBadgeText,
+                ]}
+              >
+                {employees.length}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'admins' && styles.activeTab]}
+            onPress={() => setActiveTab('admins')}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'admins' && styles.activeTabText,
+              ]}
+            >
+              Admins
+            </Text>
+            <View
+              style={[
+                styles.tabBadge,
+                activeTab === 'admins' && styles.activeTabBadge,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabBadgeText,
+                  activeTab === 'admins' && styles.activeTabBadgeText,
+                ]}
+              >
+                {employees.filter(u => u.role === ROLES.ADMIN).length}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'others' && styles.activeTab]}
+            onPress={() => setActiveTab('others')}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'others' && styles.activeTabText,
+              ]}
+            >
+              Others
+            </Text>
+            <View
+              style={[
+                styles.tabBadge,
+                activeTab === 'others' && styles.activeTabBadge,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabBadgeText,
+                  activeTab === 'others' && styles.activeTabBadgeText,
+                ]}
+              >
+                {employees.filter(u => u.role === ROLES.WORKER).length}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {employees.length === 0 ? (
           <View style={styles.emptyState}>
             <User color={COLORS.gray} size={64} />
-            <Text style={styles.emptyText}>No workers yet</Text>
+            <Text style={styles.emptyText}>No employees yet</Text>
             <Text style={styles.emptySubtext}>
-              Add workers to get started
+              Add employees to get started
             </Text>
           </View>
-        ) : filteredWorkers.length === 0 ? (
+        ) : filteredEmployees.length === 0 ? (
           <View style={styles.emptyState}>
             <Search color={COLORS.gray} size={64} />
             <Text style={styles.emptyText}>No results found</Text>
@@ -275,9 +520,9 @@ const WorkersListScreen = ({ navigation }) => {
           </View>
         ) : (
           <FlatList
-            data={filteredWorkers}
-            keyExtractor={(item) => item.userId}
-            renderItem={renderWorker}
+            data={filteredEmployees}
+            keyExtractor={item => item.userId}
+            renderItem={renderEmployee}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -291,7 +536,7 @@ const WorkersListScreen = ({ navigation }) => {
         <Plus color={COLORS.white} size={28} />
       </TouchableOpacity>
 
-      {/* Add Worker Modal */}
+      {/* Add Employee Modal */}
       <Modal
         visible={showAddModal}
         transparent
@@ -304,14 +549,17 @@ const WorkersListScreen = ({ navigation }) => {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Worker</Text>
+              <Text style={styles.modalTitle}>Add New Employee</Text>
               <TouchableOpacity onPress={() => setShowAddModal(false)}>
                 <X color={COLORS.text} size={24} />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScroll}>
-              <Text style={styles.sectionTitle}>Worker Details</Text>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={styles.modalScroll}
+            >
+              <Text style={styles.sectionTitle}>Personal Details</Text>
 
               <View style={styles.inputContainer}>
                 <User color={COLORS.gray} size={20} style={styles.inputIcon} />
@@ -351,24 +599,66 @@ const WorkersListScreen = ({ navigation }) => {
                 />
               </View>
 
-              {/* Designation Selection Button */}
-              <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Designation</Text>
+              {/* Role Selection Button */}
+              <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Role</Text>
               <TouchableOpacity
                 style={styles.designationSelectButton}
-                onPress={() => setShowDesignationModal(true)}
+                onPress={() => setShowRoleModal(true)}
                 activeOpacity={0.7}
               >
                 <Briefcase color={COLORS.gray} size={20} />
-                <Text style={[
-                  styles.designationSelectText,
-                  !selectedDesignationId && styles.designationSelectTextPlaceholder
-                ]}>
-                  {getSelectedDesignationName()}
+                <Text
+                  style={[
+                    styles.designationSelectText,
+                    !selectedRole && styles.designationSelectTextPlaceholder,
+                  ]}
+                >
+                  {selectedRole ? selectedRole.name : 'Select Role'}
                 </Text>
                 <ChevronRight color={COLORS.gray} size={20} />
               </TouchableOpacity>
 
-              <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Login Credentials</Text>
+              {/* Designation Selection Button */}
+              <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
+                Designation
+              </Text>
+              {!selectedRole ? (
+                <View style={styles.disabledSelectButton}>
+                  <Briefcase color={COLORS.gray} size={20} />
+                  <Text style={styles.disabledSelectText}>
+                    Select a role first
+                  </Text>
+                </View>
+              ) : filteredDesignations.length === 0 ? (
+                <View style={styles.disabledSelectButton}>
+                  <Briefcase color={COLORS.gray} size={20} />
+                  <Text style={styles.disabledSelectText}>
+                    No designations for this role
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.designationSelectButton}
+                  onPress={() => setShowDesignationModal(true)}
+                  activeOpacity={0.7}
+                >
+                  <Briefcase color={COLORS.gray} size={20} />
+                  <Text
+                    style={[
+                      styles.designationSelectText,
+                      !selectedDesignationId &&
+                        styles.designationSelectTextPlaceholder,
+                    ]}
+                  >
+                    {getSelectedDesignationName()}
+                  </Text>
+                  <ChevronRight color={COLORS.gray} size={20} />
+                </TouchableOpacity>
+              )}
+
+              <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
+                Login Credentials
+              </Text>
 
               <View style={styles.inputContainer}>
                 <User color={COLORS.gray} size={20} style={styles.inputIcon} />
@@ -411,12 +701,16 @@ const WorkersListScreen = ({ navigation }) => {
 
               <TouchableOpacity
                 style={[styles.button, loading && styles.buttonDisabled]}
-                onPress={handleAddWorker}
+                onPress={handleAddEmployee}
                 disabled={loading}
               >
-                <UserPlus color={COLORS.white} size={20} style={styles.buttonIcon} />
+                <UserPlus
+                  color={COLORS.white}
+                  size={20}
+                  style={styles.buttonIcon}
+                />
                 <Text style={styles.buttonText}>
-                  {loading ? 'Creating...' : 'Create Worker Account'}
+                  {loading ? 'Creating...' : 'Create Account'}
                 </Text>
               </TouchableOpacity>
             </ScrollView>
@@ -445,45 +739,62 @@ const WorkersListScreen = ({ navigation }) => {
               style={styles.designationScrollView}
               showsVerticalScrollIndicator={true}
             >
-              {designations.length === 0 ? (
+              {filteredDesignations.length === 0 ? (
                 <View style={styles.emptyDesignationState}>
                   <Briefcase color={COLORS.gray} size={48} />
-                  <Text style={styles.emptyDesignationText}>No designations yet</Text>
+                  <Text style={styles.emptyDesignationText}>
+                    No designations for this role
+                  </Text>
                   <Text style={styles.emptyDesignationSubtext}>
-                    Create a designation to get started
+                    Create a designation for {selectedRole?.name} role first
                   </Text>
                 </View>
               ) : (
-                designations.map((designation) => (
+                filteredDesignations.map(designation => (
                   <TouchableOpacity
                     key={designation.designationId}
                     style={[
                       styles.designationItem,
-                      selectedDesignationId === designation.designationId && styles.designationItemSelected,
+                      selectedDesignationId === designation.designationId &&
+                        styles.designationItemSelected,
                     ]}
-                    onPress={() => handleSelectDesignation(designation.designationId)}
+                    onPress={() =>
+                      handleSelectDesignation(designation.designationId)
+                    }
                     activeOpacity={0.7}
                   >
                     <View style={styles.designationItemContent}>
                       <Briefcase
-                        color={selectedDesignationId === designation.designationId ? COLORS.primary : COLORS.gray}
+                        color={
+                          selectedDesignationId === designation.designationId
+                            ? COLORS.primary
+                            : COLORS.gray
+                        }
                         size={20}
                       />
-                      <Text style={[
-                        styles.designationItemText,
-                        selectedDesignationId === designation.designationId && styles.designationItemTextSelected
-                      ]}>
+                      <Text
+                        style={[
+                          styles.designationItemText,
+                          selectedDesignationId === designation.designationId &&
+                            styles.designationItemTextSelected,
+                        ]}
+                      >
                         {designation.name}
                       </Text>
                     </View>
                     <View
                       style={[
                         styles.radioButton,
-                        selectedDesignationId === designation.designationId && styles.radioButtonSelected,
+                        selectedDesignationId === designation.designationId &&
+                          styles.radioButtonSelected,
                       ]}
                     >
                       {selectedDesignationId === designation.designationId && (
-                        <Circle color={COLORS.primary} size={12} fill={COLORS.primary} />
+                        <Circle
+                          color={COLORS.primary}
+                          size={12}
+                          fill={COLORS.primary}
+                        />
                       )}
                     </View>
                   </TouchableOpacity>
@@ -500,12 +811,18 @@ const WorkersListScreen = ({ navigation }) => {
                   activeOpacity={0.7}
                 >
                   <Plus color={COLORS.primary} size={20} />
-                  <Text style={styles.addNewDesignationText}>Add New Designation</Text>
+                  <Text style={styles.addNewDesignationText}>
+                    Add New Designation
+                  </Text>
                 </TouchableOpacity>
               ) : (
                 <View style={styles.newDesignationContainer}>
                   <View style={styles.inputContainer}>
-                    <Briefcase color={COLORS.gray} size={20} style={styles.inputIcon} />
+                    <Briefcase
+                      color={COLORS.gray}
+                      size={20}
+                      style={styles.inputIcon}
+                    />
                     <TextInput
                       style={styles.input}
                       placeholder="New Designation Name"
@@ -529,12 +846,102 @@ const WorkersListScreen = ({ navigation }) => {
                       style={styles.createDesignationButton}
                       onPress={handleAddNewDesignation}
                     >
-                      <Text style={styles.createDesignationButtonText}>Create</Text>
+                      <Text style={styles.createDesignationButtonText}>
+                        Create
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               )}
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Role Selection Modal */}
+      <Modal
+        visible={showRoleModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowRoleModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.designationModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Role</Text>
+              <TouchableOpacity onPress={() => setShowRoleModal(false)}>
+                <X color={COLORS.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.designationScrollView}
+              showsVerticalScrollIndicator={true}
+            >
+              {roles.length === 0 ? (
+                <View style={styles.emptyDesignationState}>
+                  <Briefcase color={COLORS.gray} size={48} />
+                  <Text style={styles.emptyDesignationText}>
+                    No roles found
+                  </Text>
+                  <Text style={styles.emptyDesignationSubtext}>
+                    Please create roles in Hierarchy Manager first
+                  </Text>
+                </View>
+              ) : (
+                roles.map(role => (
+                  <TouchableOpacity
+                    key={role.id}
+                    style={[
+                      styles.designationItem,
+                      selectedRole?.id === role.id &&
+                        styles.designationItemSelected,
+                    ]}
+                    onPress={() => {
+                      setSelectedRole(role);
+                      setSelectedDesignationId(null); // Reset designation when role changes
+                      setShowRoleModal(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.designationItemContent}>
+                      <Briefcase
+                        color={
+                          selectedRole?.id === role.id
+                            ? COLORS.primary
+                            : COLORS.gray
+                        }
+                        size={20}
+                      />
+                      <Text
+                        style={[
+                          styles.designationItemText,
+                          selectedRole?.id === role.id &&
+                            styles.designationItemTextSelected,
+                        ]}
+                      >
+                        {role.name}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.radioButton,
+                        selectedRole?.id === role.id &&
+                          styles.radioButtonSelected,
+                      ]}
+                    >
+                      {selectedRole?.id === role.id && (
+                        <Circle
+                          color={COLORS.primary}
+                          size={12}
+                          fill={COLORS.primary}
+                        />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -587,6 +994,53 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: COLORS.text,
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  activeTab: {
+    backgroundColor: COLORS.primary,
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textLight,
+    marginRight: 6,
+  },
+  activeTabText: {
+    color: COLORS.white,
+  },
+  tabBadge: {
+    backgroundColor: COLORS.border,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  activeTabBadge: {
+    backgroundColor: COLORS.white + '30',
+  },
+  tabBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.textLight,
+  },
+  activeTabBadgeText: {
+    color: COLORS.white,
   },
   emptyState: {
     flex: 1,
@@ -641,13 +1095,24 @@ const styles = StyleSheet.create({
   designationBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    alignSelf: 'flex-start', // ⭐ important
+    backgroundColor: COLORS.primary + '10',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999, // true pill shape
+    gap: 4,
+  },
+  designationBadgeAdmin: {
+    backgroundColor: '#FEE2E2',
   },
   designationText: {
     fontSize: 12,
     color: COLORS.primary,
     marginLeft: 4,
     fontWeight: '500',
+  },
+  designationTextAdmin: {
+    color: '#DC2626',
   },
   fab: {
     position: 'absolute',
@@ -742,6 +1207,25 @@ const styles = StyleSheet.create({
   },
   designationSelectTextPlaceholder: {
     color: COLORS.gray,
+  },
+  disabledSelectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.border + '40',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    height: 50,
+    marginBottom: 12,
+    opacity: 0.6,
+  },
+  disabledSelectText: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.gray,
+    marginLeft: 12,
+    fontStyle: 'italic',
   },
   designationScrollView: {
     maxHeight: 300,
@@ -881,4 +1365,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default WorkersListScreen;
+export default EmployeesScreen;

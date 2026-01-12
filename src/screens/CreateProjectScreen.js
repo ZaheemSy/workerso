@@ -11,7 +11,7 @@ import {
   ScrollView,
   Modal,
 } from 'react-native';
-import { Briefcase, X, Save, FileText, Users, Check, Calendar, UserPlus, UsersIcon } from 'lucide-react-native';
+import { Briefcase, X, Save, FileText, Users, Check, Calendar, UserPlus, UsersIcon, Building2, TrendingUp } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
@@ -24,6 +24,8 @@ const CreateProjectScreen = ({ navigation, route }) => {
   const [formData, setFormData] = useState({
     projectName: '',
     description: '',
+    projectFrom: '',
+    broughtBy: '',
     startDate: '',
     endDate: '',
   });
@@ -75,10 +77,20 @@ const CreateProjectScreen = ({ navigation, route }) => {
   };
 
   const validateForm = () => {
-    const { projectName } = formData;
+    const { projectName, projectFrom, broughtBy } = formData;
 
     if (!projectName.trim()) {
       Alert.alert('Error', 'Please enter project name');
+      return false;
+    }
+
+    if (!projectFrom.trim()) {
+      Alert.alert('Error', 'Please enter who the project is from');
+      return false;
+    }
+
+    if (!broughtBy.trim()) {
+      Alert.alert('Error', 'Please enter who brought the project');
       return false;
     }
 
@@ -125,6 +137,8 @@ const CreateProjectScreen = ({ navigation, route }) => {
         orgId: session.orgId,
         projectName: formData.projectName.trim(),
         description: formData.description.trim(),
+        projectFrom: formData.projectFrom.trim(),
+        broughtBy: formData.broughtBy.trim(),
         startDate: startDateISO,
         endDate: endDateISO,
         workers: allWorkerIds,
@@ -219,6 +233,30 @@ const CreateProjectScreen = ({ navigation, route }) => {
             multiline
             numberOfLines={4}
             textAlignVertical="top"
+          />
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Building2 color={COLORS.gray} size={20} style={styles.inputIcon} />
+          <TextInput
+            style={styles.input}
+            placeholder="Project is from *"
+            placeholderTextColor={COLORS.gray}
+            value={formData.projectFrom}
+            onChangeText={value => handleChange('projectFrom', value)}
+            autoCapitalize="words"
+          />
+        </View>
+
+        <View style={styles.inputContainer}>
+          <TrendingUp color={COLORS.gray} size={20} style={styles.inputIcon} />
+          <TextInput
+            style={styles.input}
+            placeholder="Project brought by *"
+            placeholderTextColor={COLORS.gray}
+            value={formData.broughtBy}
+            onChangeText={value => handleChange('broughtBy', value)}
+            autoCapitalize="words"
           />
         </View>
 
