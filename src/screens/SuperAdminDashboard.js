@@ -28,6 +28,10 @@ import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
 import LottieView from 'lottie-react-native';
 
+// ⚙️ FADE OPACITY SETTINGS - Adjust these values to change number visibility
+const NUMBER_FADE_OPACITY = 0.12;  // Main number opacity (0.0 to 1.0) - Lower = more faded
+const OPTIONAL_FADE_OPACITY = 0.25; // "OPT" label opacity (0.0 to 1.0) - Lower = more faded
+
 const SuperAdminDashboard = ({ navigation }) => {
   const { session, logout } = useAuth();
 
@@ -441,14 +445,14 @@ const styles = StyleSheet.create({
   numberText: {
     fontSize: 52,
     fontWeight: '900',
-    opacity: 0.12,
+    opacity: NUMBER_FADE_OPACITY,
     lineHeight: 52,
     letterSpacing: -2,
   },
   optionalText: {
     fontSize: 9,
     fontWeight: '800',
-    opacity: 0.25,
+    opacity: OPTIONAL_FADE_OPACITY,
     marginTop: -8,
     letterSpacing: 0.5,
   },
