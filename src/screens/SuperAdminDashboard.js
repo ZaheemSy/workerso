@@ -74,6 +74,13 @@ const SuperAdminDashboard = ({ navigation }) => {
       onPress: () => navigation.navigate('WorkerGroupsList'),
     },
     {
+      icon: Building2,
+      title: 'All Clients',
+      subtitle: 'Manage client database',
+      color: '#EC4899',
+      onPress: () => navigation.navigate('Clients'),
+    },
+    {
       icon: Briefcase,
       title: 'All Projects',
       subtitle: 'Organization projects',
@@ -82,8 +89,8 @@ const SuperAdminDashboard = ({ navigation }) => {
     },
     {
       icon: FileBarChart,
-      title: 'Reports',
-      subtitle: 'View analytics and reports',
+      title: 'Analytics',
+      subtitle: 'View insights and analytics',
       color: COLORS.darkGray,
       onPress: () => navigation.navigate('Reports'),
     },
@@ -121,7 +128,9 @@ const SuperAdminDashboard = ({ navigation }) => {
                 </Text>
                 <View style={styles.adminBadge}>
                   <Shield color="#DC2626" size={11} fill="#DC2626" />
-                  <Text style={styles.adminText}>{session?.designation || 'Super Admin'}</Text>
+                  <Text style={styles.adminText}>
+                    {session?.designation || 'Super Admin'}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -171,13 +180,13 @@ const SuperAdminDashboard = ({ navigation }) => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <TouchableOpacity
           style={styles.adminWorkersCard}
-          onPress={() => navigation.navigate('Pending')}
+          onPress={() => navigation.navigate('Report')}
           activeOpacity={0.7}
         >
           <Users color="#8B5CF6" size={22} />
-          <Text style={styles.adminWorkersTitle}>Pending</Text>
+          <Text style={styles.adminWorkersTitle}>Reports</Text>
           <Text style={styles.adminWorkersSeparator}>•</Text>
-          <Text style={styles.adminWorkersSubtitle}>View pending items</Text>
+          <Text style={styles.adminWorkersSubtitle}>Download reports</Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>Administration</Text>

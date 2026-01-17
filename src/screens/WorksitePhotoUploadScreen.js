@@ -7,8 +7,11 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
+  Image as RNImage,
+  Platform,
 } from 'react-native';
-import { Camera as CameraIcon, X, Save, Plus, Clock, Image } from 'lucide-react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Camera as CameraIcon, X, Save, Calendar, Clock, ImageIcon, Trash2, Plus } from 'lucide-react-native';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,29 +20,40 @@ import { getProjectById, updateProject } from '../services/storageService';
 const WorksitePhotoUploadScreen = ({ navigation, route }) => {
   const { session } = useAuth();
   const { projectId } = route.params;
-  const [photoUri, setPhotoUri] = useState(null);
+  const [photos, setPhotos] = useState([]);
   const [note, setNote] = useState('');
-  const [workStart, setWorkStart] = useState('');
-  const [workEnd, setWorkEnd] = useState('');
-  const [breaks, setBreaks] = useState([]);
+  const [updateDate, setUpdateDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [loading, setLoading] = useState(false);
   const cameraRef = useRef(null);
   const device = useCameraDevice('back');
   const { hasPermission, requestPermission } = useCameraPermission();
 
-  const addBreak = () => {
-    setBreaks([...breaks, { start: '', end: '' }]);
+  const removePhoto = (index) => {
+    setPhotos(photos.filter((_, i) => i !== index));
   };
 
-  const removeBreak = (index) => {
-    setBreaks(breaks.filter((_, i) => i !== index));
+  const onDateChange = (event, selectedDate) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      const newDate = new Date(updateDate);
+      newDate.setFullYear(selectedDate.getFullYear());
+      newDate.setMonth(selectedDate.getMonth());
+      newDate.setDate(selectedDate.getDate());
+      setUpdateDate(newDate);
+    }
   };
 
-  const updateBreak = (index, field, value) => {
-    const newBreaks = [...breaks];
-    newBreaks[index][field] = value;
-    setBreaks(newBreaks);
+  const onTimeChange = (event, selectedTime) => {
+    setShowTimePicker(false);
+    if (selectedTime) {
+      const newDate = new Date(updateDate);
+      newDate.setHours(selectedTime.getHours());
+      newDate.setMinutes(selectedTime.getMinutes());
+      setUpdateDate(newDate);
+    }
   };
 
   const takePicture = async () => {
@@ -54,7 +68,7 @@ const WorksitePhotoUploadScreen = ({ navigation, route }) => {
     if (cameraRef.current) {
       try {
         const photo = await cameraRef.current.takePhoto({ flash: 'auto' });
-        setPhotoUri(photo.path);
+        setPhotos([...photos, photo.path]);
         setShowCamera(false);
       } catch (error) {
         console.error('Error taking photo:', error);
@@ -64,8 +78,8 @@ const WorksitePhotoUploadScreen = ({ navigation, route }) => {
   };
 
   const handleSubmit = async () => {
-    if (!photoUri) {
-      Alert.alert('Error', 'Please take a photo first');
+    if (photos.length === 0) {
+      Alert.alert('Error', 'Please take at least one photo');
       return;
     }
 
@@ -78,13 +92,10 @@ const WorksitePhotoUploadScreen = ({ navigation, route }) => {
     try {
       const project = await getProjectById(projectId);
       const newLog = {
-        logPhotoUri: photoUri,
+        photos: photos,
         note: note.trim(),
         workerId: session.userId,
-        workStart: workStart || null,
-        workEnd: workEnd || null,
-        breaks: breaks.filter(b => b.start && b.end),
-        timestamp: new Date().toISOString(),
+        timestamp: updateDate.toISOString(),
       };
 
       const updatedSiteLogs = [...(project.siteLogs || []), newLog];
@@ -150,20 +161,33 @@ const WorksitePhotoUploadScreen = ({ navigation, route }) => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionTitle}>Site Photo</Text>
+        <Text style={styles.sectionTitle}>Site Photos</Text>
+
+        {photos.length > 0 && (
+          <View style={styles.photoGrid}>
+            {photos.map((photoPath, index) => (
+              <View key={index} style={styles.photoThumbnailContainer}>
+                <RNImage
+                  source={{ uri: `file://${photoPath}` }}
+                  style={styles.photoThumbnail}
+                  resizeMode="cover"
+                />
+                <TouchableOpacity
+                  style={styles.deletePhotoButton}
+                  onPress={() => removePhoto(index)}
+                >
+                  <Trash2 color={COLORS.white} size={16} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
 
         <TouchableOpacity style={styles.photoButton} onPress={() => setShowCamera(true)}>
-          {photoUri ? (
-            <>
-              <Image color={COLORS.success} size={32} />
-              <Text style={styles.photoButtonText}>Photo captured - Tap to retake</Text>
-            </>
-          ) : (
-            <>
-              <CameraIcon color={COLORS.primary} size={32} />
-              <Text style={styles.photoButtonText}>Take Photo</Text>
-            </>
-          )}
+          <CameraIcon color={COLORS.primary} size={32} />
+          <Text style={styles.photoButtonText}>
+            {photos.length > 0 ? 'Add More Photos' : 'Take Photos'}
+          </Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>Notes</Text>
@@ -181,75 +205,60 @@ const WorksitePhotoUploadScreen = ({ navigation, route }) => {
           />
         </View>
 
-        <Text style={styles.sectionTitle}>Work Timing (Optional)</Text>
+        <Text style={styles.sectionTitle}>Update Date & Time</Text>
 
-        <View style={styles.timeRow}>
-          <View style={styles.timeInputContainer}>
-            <Text style={styles.label}>Start</Text>
-            <View style={styles.inputWrapper}>
-              <Clock color={COLORS.gray} size={18} />
-              <TextInput
-                style={styles.timeInput}
-                placeholder="09:00"
-                placeholderTextColor={COLORS.gray}
-                value={workStart}
-                onChangeText={setWorkStart}
-                keyboardType="numbers-and-punctuation"
-              />
+        <View style={styles.dateTimeRow}>
+          <TouchableOpacity
+            style={styles.dateTimeButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Calendar color={COLORS.primary} size={20} />
+            <View style={styles.dateTimeTextContainer}>
+              <Text style={styles.dateTimeLabel}>Date</Text>
+              <Text style={styles.dateTimeValue}>
+                {updateDate.toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.timeInputContainer}>
-            <Text style={styles.label}>End</Text>
-            <View style={styles.inputWrapper}>
-              <Clock color={COLORS.gray} size={18} />
-              <TextInput
-                style={styles.timeInput}
-                placeholder="18:00"
-                placeholderTextColor={COLORS.gray}
-                value={workEnd}
-                onChangeText={setWorkEnd}
-                keyboardType="numbers-and-punctuation"
-              />
+          <TouchableOpacity
+            style={styles.dateTimeButton}
+            onPress={() => setShowTimePicker(true)}
+          >
+            <Clock color={COLORS.secondary} size={20} />
+            <View style={styles.dateTimeTextContainer}>
+              <Text style={styles.dateTimeLabel}>Time</Text>
+              <Text style={styles.dateTimeValue}>
+                {updateDate.toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.breakSection}>
-          <View style={styles.breakHeader}>
-            <Text style={styles.sectionTitle}>Breaks</Text>
-            <TouchableOpacity style={styles.addButton} onPress={addBreak}>
-              <Plus color={COLORS.primary} size={18} />
-              <Text style={styles.addButtonText}>Add</Text>
-            </TouchableOpacity>
-          </View>
+        {showDatePicker && (
+          <DateTimePicker
+            value={updateDate}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={onDateChange}
+          />
+        )}
 
-          {breaks.map((breakItem, index) => (
-            <View key={index} style={styles.breakItem}>
-              <View style={styles.breakInputs}>
-                <TextInput
-                  style={styles.breakInput}
-                  placeholder="Start"
-                  placeholderTextColor={COLORS.gray}
-                  value={breakItem.start}
-                  onChangeText={(value) => updateBreak(index, 'start', value)}
-                  keyboardType="numbers-and-punctuation"
-                />
-                <TextInput
-                  style={styles.breakInput}
-                  placeholder="End"
-                  placeholderTextColor={COLORS.gray}
-                  value={breakItem.end}
-                  onChangeText={(value) => updateBreak(index, 'end', value)}
-                  keyboardType="numbers-and-punctuation"
-                />
-              </View>
-              <TouchableOpacity onPress={() => removeBreak(index)} style={styles.removeButton}>
-                <X color={COLORS.danger} size={18} />
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
+        {showTimePicker && (
+          <DateTimePicker
+            value={updateDate}
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={onTimeChange}
+          />
+        )}
 
         <TouchableOpacity
           style={[styles.submitButton, loading && styles.buttonDisabled]}
@@ -314,6 +323,34 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     marginTop: 8,
   },
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 16,
+  },
+  photoThumbnailContainer: {
+    width: '31%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  photoThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  deletePhotoButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: COLORS.danger,
+    borderRadius: 16,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   textAreaContainer: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
@@ -328,83 +365,35 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     textAlignVertical: 'top',
   },
-  timeRow: {
+  dateTimeRow: {
     flexDirection: 'row',
     gap: 12,
     marginBottom: 24,
   },
-  timeInputContainer: {
+  dateTimeButton: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  dateTimeTextContainer: {
     flex: 1,
   },
-  label: {
-    fontSize: 14,
+  dateTimeLabel: {
+    fontSize: 12,
     fontWeight: '500',
     color: COLORS.textLight,
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 12,
-    height: 48,
-    gap: 8,
-  },
-  timeInput: {
-    flex: 1,
-    fontSize: 16,
-    color: COLORS.text,
-  },
-  breakSection: {
-    marginBottom: 24,
-  },
-  breakHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary + '15',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 4,
-  },
-  addButtonText: {
-    color: COLORS.primary,
-    fontSize: 14,
+  dateTimeValue: {
+    fontSize: 15,
     fontWeight: '600',
-  },
-  breakItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
-  },
-  breakInputs: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  breakInput: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 12,
-    height: 48,
-    fontSize: 16,
     color: COLORS.text,
-  },
-  removeButton: {
-    padding: 8,
   },
   submitButton: {
     backgroundColor: COLORS.primary,

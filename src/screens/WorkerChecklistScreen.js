@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { X, Save, Check, Users } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
+import { X, Save, Check, Users, Search } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,6 +13,7 @@ const WorkerChecklistScreen = ({ navigation, route }) => {
   const [workers, setWorkers] = useState([]);
   const [selectedWorkers, setSelectedWorkers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadData();
@@ -38,6 +39,19 @@ const WorkerChecklistScreen = ({ navigation, route }) => {
       prev.includes(workerId)
         ? prev.filter(id => id !== workerId)
         : [...prev, workerId]
+    );
+  };
+
+  const getFilteredWorkers = () => {
+    if (!searchQuery.trim()) {
+      return workers;
+    }
+    const query = searchQuery.toLowerCase();
+    return workers.filter(
+      worker =>
+        worker.name?.toLowerCase().includes(query) ||
+        worker.username?.toLowerCase().includes(query) ||
+        worker.phone?.toLowerCase().includes(query)
     );
   };
 
@@ -81,6 +95,23 @@ const WorkerChecklistScreen = ({ navigation, route }) => {
           </Text>
         </View>
 
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Search color={COLORS.gray} size={20} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search workers by name, username, or phone..."
+            placeholderTextColor={COLORS.gray}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <X color={COLORS.gray} size={20} />
+            </TouchableOpacity>
+          )}
+        </View>
+
         <Text style={styles.sectionTitle}>Available Workers</Text>
 
         {workers.length === 0 ? (
@@ -89,8 +120,14 @@ const WorkerChecklistScreen = ({ navigation, route }) => {
             <Text style={styles.emptyText}>No workers available</Text>
             <Text style={styles.emptySubtext}>Add workers first to assign them to projects</Text>
           </View>
+        ) : getFilteredWorkers().length === 0 ? (
+          <View style={styles.emptyState}>
+            <Users color={COLORS.gray} size={48} />
+            <Text style={styles.emptyText}>No workers found</Text>
+            <Text style={styles.emptySubtext}>Try adjusting your search</Text>
+          </View>
         ) : (
-          workers.map((worker) => (
+          getFilteredWorkers().map((worker) => (
             <TouchableOpacity
               key={worker.userId}
               style={[
@@ -171,6 +208,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textLight,
     marginTop: 4,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 24,
+    gap: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
   },
   sectionTitle: {
     fontSize: 16,

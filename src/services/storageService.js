@@ -11,6 +11,7 @@ export const STORAGE_KEYS = {
   SESSION: '@workerso_session',
   DEVLOGS: '@workerso_devlogs',
   DESIGNATIONS: '@workerso_designations',
+  CLIENTS: '@workerso_clients',
 };
 
 // Helper function to generate unique IDs
@@ -319,6 +320,66 @@ export const deleteDesignation = async (designationId) => {
   const designations = (await getItem(STORAGE_KEYS.DESIGNATIONS)) || [];
   const filtered = designations.filter(designation => designation.designationId !== designationId);
   await setItem(STORAGE_KEYS.DESIGNATIONS, filtered);
+  return true;
+};
+
+// ============================================
+// CLIENT SERVICES
+// ============================================
+
+/**
+ * Create client
+ */
+export const createClient = async (clientData) => {
+  const clients = (await getItem(STORAGE_KEYS.CLIENTS)) || [];
+  const clientId = generateId('client');
+  const newClient = {
+    clientId,
+    ...clientData,
+    createdAt: new Date().toISOString(),
+  };
+  clients.push(newClient);
+  await setItem(STORAGE_KEYS.CLIENTS, clients);
+  return newClient;
+};
+
+/**
+ * Get clients by organization
+ */
+export const getClientsByOrg = async (orgId) => {
+  const clients = (await getItem(STORAGE_KEYS.CLIENTS)) || [];
+  return clients.filter(client => client.orgId === orgId);
+};
+
+/**
+ * Get client by ID
+ */
+export const getClientById = async (clientId) => {
+  const clients = (await getItem(STORAGE_KEYS.CLIENTS)) || [];
+  return clients.find(client => client.clientId === clientId);
+};
+
+/**
+ * Update client
+ */
+export const updateClient = async (clientId, updates) => {
+  const clients = (await getItem(STORAGE_KEYS.CLIENTS)) || [];
+  const index = clients.findIndex(client => client.clientId === clientId);
+  if (index !== -1) {
+    clients[index] = { ...clients[index], ...updates, updatedAt: new Date().toISOString() };
+    await setItem(STORAGE_KEYS.CLIENTS, clients);
+    return clients[index];
+  }
+  return null;
+};
+
+/**
+ * Delete client
+ */
+export const deleteClient = async (clientId) => {
+  const clients = (await getItem(STORAGE_KEYS.CLIENTS)) || [];
+  const filtered = clients.filter(client => client.clientId !== clientId);
+  await setItem(STORAGE_KEYS.CLIENTS, filtered);
   return true;
 };
 

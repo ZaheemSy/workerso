@@ -150,6 +150,14 @@ const AdminDashboard = ({ navigation }) => {
       gradient: ['#EC4899', '#F43F5E'],
       onPress: () => navigation.navigate('WorkLogsView'),
     },
+    {
+      icon: Activity,
+      title: 'Reports',
+      subtitle: 'Download data',
+      color: '#10B981',
+      gradient: ['#10B981', '#059669'],
+      onPress: () => navigation.navigate('Report'),
+    },
   ];
 
   const menuItems = [
@@ -180,6 +188,16 @@ const AdminDashboard = ({ navigation }) => {
       color: '#06B6D4',
       bgColor: '#ECFEFF',
       onPress: () => navigation.navigate('Designations'),
+    },
+    {
+      animation: require('../assets/json/ID_Card.json'),
+      title: 'Clients',
+      subtitle: 'Client database',
+      icon: '🏢',
+      color: '#F59E0B',
+      bgColor: '#FEF3C7',
+      scale: 1.2,
+      onPress: () => navigation.navigate('Clients'),
     },
     {
       animation: require('../assets/json/Projects.json'),
@@ -584,10 +602,12 @@ const styles = StyleSheet.create({
   },
   quickGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
   quickCard: {
     flex: 1,
+    minWidth: '30%',
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 12,

@@ -27,6 +27,9 @@ import ProjectListScreen from './src/screens/ProjectListScreen';
 import ProjectDetailScreen from './src/screens/ProjectDetailScreen';
 import WorkerChecklistScreen from './src/screens/WorkerChecklistScreen';
 import WorksitePhotoUploadScreen from './src/screens/WorksitePhotoUploadScreen';
+import ProjectWorkLogScreen from './src/screens/ProjectWorkLogScreen';
+import SiteUpdateHistoryScreen from './src/screens/SiteUpdateHistoryScreen';
+import MemberProjectDetailScreen from './src/screens/MemberProjectDetailScreen';
 
 // Admin tools
 import AddWorkerScreen from './src/screens/AddWorkerScreen';
@@ -39,6 +42,7 @@ import WorkLogsViewScreen from './src/screens/WorkLogsViewScreen';
 import EmployeesScreen from './src/screens/EmployeesScreen';
 import WorkerGroupsListScreen from './src/screens/WorkerGroupsListScreen';
 import DesignationsScreen from './src/screens/DesignationsScreen';
+import ClientsScreen from './src/screens/ClientsScreen';
 import SupportDevScreen from './src/screens/SupportDevScreen';
 
 // Profile screens
@@ -56,8 +60,12 @@ import UserDetailScreen from './src/screens/UserDetailScreen';
 // Hierarchy Management
 import HierarchyManagerScreen from './src/screens/HierarchyManagerScreen';
 
-// Pending Screen
-import PendingScreen from './src/screens/PendingScreen';
+// Report Screens
+import ReportScreen from './src/screens/ReportScreen';
+import EmployeeSelectionScreen from './src/screens/EmployeeSelectionScreen';
+import ProjectSelectionScreen from './src/screens/ProjectSelectionScreen';
+import ReportOptionsScreen from './src/screens/ReportOptionsScreen';
+import ReportPreviewScreen from './src/screens/ReportPreviewScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -102,6 +110,9 @@ function AppNavigator() {
               <Stack.Screen name="WorkerProfile" component={WorkerProfileScreen} />
               <Stack.Screen name="ProjectList" component={ProjectListScreen} />
               <Stack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
+              <Stack.Screen name="ProjectWorkLog" component={ProjectWorkLogScreen} />
+              <Stack.Screen name="SiteUpdateHistory" component={SiteUpdateHistoryScreen} />
+              <Stack.Screen name="MemberProjectDetail" component={MemberProjectDetailScreen} />
             </>
           )}
 
@@ -110,6 +121,13 @@ function AppNavigator() {
               <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
               <Stack.Screen name="SupportDevScreen" component={SupportDevScreen} />
               <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
+
+              {/* Reports */}
+              <Stack.Screen name="Report" component={ReportScreen} />
+              <Stack.Screen name="EmployeeSelection" component={EmployeeSelectionScreen} />
+              <Stack.Screen name="ProjectSelection" component={ProjectSelectionScreen} />
+              <Stack.Screen name="ReportOptions" component={ReportOptionsScreen} />
+              <Stack.Screen name="ReportPreview" component={ReportPreviewScreen} />
 
               {/* Worker Management */}
               <Stack.Screen name="Employees" component={EmployeesScreen} />
@@ -122,12 +140,18 @@ function AppNavigator() {
               <Stack.Screen name="CreateWorkerGroup" component={CreateWorkerGroupScreen} />
               <Stack.Screen name="Designations" component={DesignationsScreen} />
 
+              {/* Clients */}
+              <Stack.Screen name="Clients" component={ClientsScreen} />
+
               {/* Project Management */}
               <Stack.Screen name="CreateProject" component={CreateProjectScreen} />
               <Stack.Screen name="ProjectList" component={ProjectListScreen} />
               <Stack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
               <Stack.Screen name="WorkerChecklist" component={WorkerChecklistScreen} />
               <Stack.Screen name="WorksitePhotoUpload" component={WorksitePhotoUploadScreen} />
+              <Stack.Screen name="ProjectWorkLog" component={ProjectWorkLogScreen} />
+              <Stack.Screen name="SiteUpdateHistory" component={SiteUpdateHistoryScreen} />
+              <Stack.Screen name="MemberProjectDetail" component={MemberProjectDetailScreen} />
 
               {/* Records & Logs */}
               <Stack.Screen name="AttendanceRecords" component={AttendanceRecordsScreen} />
@@ -146,7 +170,11 @@ function AppNavigator() {
             <>
               <Stack.Screen name="SuperAdminDashboard" component={SuperAdminDashboard} />
               <Stack.Screen name="SupportDevScreen" component={SupportDevScreen} />
-              <Stack.Screen name="Pending" component={PendingScreen} />
+              <Stack.Screen name="Report" component={ReportScreen} />
+              <Stack.Screen name="EmployeeSelection" component={EmployeeSelectionScreen} />
+              <Stack.Screen name="ProjectSelection" component={ProjectSelectionScreen} />
+              <Stack.Screen name="ReportOptions" component={ReportOptionsScreen} />
+              <Stack.Screen name="ReportPreview" component={ReportPreviewScreen} />
               <Stack.Screen name="HierarchyManager" component={HierarchyManagerScreen} />
 
               {/* Admin and Worker Management */}
@@ -163,12 +191,18 @@ function AppNavigator() {
               <Stack.Screen name="CreateWorkerGroup" component={CreateWorkerGroupScreen} />
               <Stack.Screen name="Designations" component={DesignationsScreen} />
 
+              {/* Clients */}
+              <Stack.Screen name="Clients" component={ClientsScreen} />
+
               {/* Projects */}
               <Stack.Screen name="CreateProject" component={CreateProjectScreen} />
               <Stack.Screen name="ProjectList" component={ProjectListScreen} />
               <Stack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
               <Stack.Screen name="WorkerChecklist" component={WorkerChecklistScreen} />
               <Stack.Screen name="WorksitePhotoUpload" component={WorksitePhotoUploadScreen} />
+              <Stack.Screen name="ProjectWorkLog" component={ProjectWorkLogScreen} />
+              <Stack.Screen name="SiteUpdateHistory" component={SiteUpdateHistoryScreen} />
+              <Stack.Screen name="MemberProjectDetail" component={MemberProjectDetailScreen} />
 
               {/* Records & Reports */}
               <Stack.Screen name="AttendanceRecords" component={AttendanceRecordsScreen} />

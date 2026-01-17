@@ -11,11 +11,12 @@ import {
   ScrollView,
   Modal,
 } from 'react-native';
-import { Briefcase, X, Save, FileText, Users, Check, Calendar, UserPlus, UsersIcon, Building2, TrendingUp } from 'lucide-react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Briefcase, X, Save, FileText, Users, Check, Calendar, UserPlus, UsersIcon, Building2, TrendingUp, Search, Phone, MapPin, Plus } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
-import { createProject, getUsersByOrg, getGroupsByOrg } from '../services/storageService';
+import { createProject, getUsersByOrg, getGroupsByOrg, getDesignationById, getClientsByOrg, createClient } from '../services/storageService';
 import { formatDateToISO, formatDateToDDMMYYYY, parseDDMMYYYY } from '../utils/dateUtils';
 
 const CreateProjectScreen = ({ navigation, route }) => {
@@ -26,8 +27,6 @@ const CreateProjectScreen = ({ navigation, route }) => {
     description: '',
     projectFrom: '',
     broughtBy: '',
-    startDate: '',
-    endDate: '',
   });
   const [loading, setLoading] = useState(false);
   const [workers, setWorkers] = useState([]);
@@ -38,9 +37,35 @@ const CreateProjectScreen = ({ navigation, route }) => {
   // Modal states
   const [showWorkerModal, setShowWorkerModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [showBroughtByModal, setShowBroughtByModal] = useState(false);
+  const [showEmployeeListModal, setShowEmployeeListModal] = useState(false);
+  const [broughtByType, setBroughtByType] = useState(''); // 'employee' or 'other'
+  const [otherBroughtBy, setOtherBroughtBy] = useState('');
+  const [employees, setEmployees] = useState([]);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+
+  // Client modal states
+  const [showProjectFromModal, setShowProjectFromModal] = useState(false);
+  const [showClientListModal, setShowClientListModal] = useState(false);
+  const [showAddClientModal, setShowAddClientModal] = useState(false);
+  const [clients, setClients] = useState([]);
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
+
+  // Add client form states
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientContact, setNewClientContact] = useState('');
+  const [newClientAddress, setNewClientAddress] = useState('');
+  const [savingClient, setSavingClient] = useState(false);
+
+  // Date picker states
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
 
   useEffect(() => {
     loadWorkersAndGroups();
+    loadClients();
   }, []);
 
   const loadWorkersAndGroups = async () => {
@@ -49,10 +74,37 @@ const CreateProjectScreen = ({ navigation, route }) => {
       const workersList = allUsers.filter(user => user.role === ROLES.WORKER);
       setWorkers(workersList);
 
+      // Load all employees with their designations
+      const employeesWithDesignations = await Promise.all(
+        allUsers.map(async (user) => {
+          let designationName = null;
+          if (user.designationId) {
+            const designation = await getDesignationById(user.designationId);
+            if (designation) {
+              designationName = designation.title;
+            }
+          }
+          return {
+            ...user,
+            designationName,
+          };
+        })
+      );
+      setEmployees(employeesWithDesignations);
+
       const groupsList = await getGroupsByOrg(session.orgId);
       setGroups(groupsList);
     } catch (error) {
       console.error('Error loading workers and groups:', error);
+    }
+  };
+
+  const loadClients = async () => {
+    try {
+      const clientList = await getClientsByOrg(session.orgId);
+      setClients(clientList);
+    } catch (error) {
+      console.error('Error loading clients:', error);
     }
   };
 
@@ -76,21 +128,116 @@ const CreateProjectScreen = ({ navigation, route }) => {
     );
   };
 
+  const handleBroughtByOptionSelect = (option) => {
+    setBroughtByType(option);
+    if (option === 'employee') {
+      setShowBroughtByModal(false);
+      setShowEmployeeListModal(true);
+    }
+    // If 'other', modal stays open for text input
+  };
+
+  const handleEmployeeSelect = (employee) => {
+    setSelectedEmployee(employee);
+    handleChange('broughtBy', employee.name);
+    setShowEmployeeListModal(false);
+  };
+
+  const handleOtherBroughtBySubmit = () => {
+    if (otherBroughtBy.trim()) {
+      handleChange('broughtBy', otherBroughtBy.trim());
+      setShowBroughtByModal(false);
+      setOtherBroughtBy('');
+    } else {
+      Alert.alert('Error', 'Please enter a name');
+    }
+  };
+
+  const handleProjectFromOptionSelect = (option) => {
+    if (option === 'client_list') {
+      setShowProjectFromModal(false);
+      setShowClientListModal(true);
+    } else if (option === 'new_client') {
+      setShowProjectFromModal(false);
+      setShowAddClientModal(true);
+    }
+  };
+
+  const handleClientSelect = (client) => {
+    handleChange('projectFrom', client.name);
+    setShowClientListModal(false);
+    setClientSearchQuery('');
+  };
+
+  const handleAddNewClient = async () => {
+    if (!newClientName.trim()) {
+      Alert.alert('Error', 'Client name is required');
+      return;
+    }
+
+    try {
+      setSavingClient(true);
+      const newClient = await createClient({
+        orgId: session.orgId,
+        name: newClientName.trim(),
+        contactNumber: newClientContact.trim(),
+        address: newClientAddress.trim(),
+        createdBy: session.userId,
+      });
+
+      if (newClient) {
+        handleChange('projectFrom', newClient.name);
+        Alert.alert('Success', 'Client added successfully');
+        resetClientForm();
+        setShowAddClientModal(false);
+        await loadClients();
+      }
+    } catch (error) {
+      console.error('Error adding client:', error);
+      Alert.alert('Error', 'Failed to add client');
+    } finally {
+      setSavingClient(false);
+    }
+  };
+
+  const resetClientForm = () => {
+    setNewClientName('');
+    setNewClientContact('');
+    setNewClientAddress('');
+  };
+
+  const getFilteredClients = () => {
+    if (!clientSearchQuery.trim()) {
+      return clients;
+    }
+    const query = clientSearchQuery.toLowerCase();
+    return clients.filter(
+      client =>
+        client.name?.toLowerCase().includes(query) ||
+        client.contactNumber?.toLowerCase().includes(query) ||
+        client.address?.toLowerCase().includes(query)
+    );
+  };
+
+  const handleStartDateChange = (event, selectedDate) => {
+    setShowStartDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setStartDate(selectedDate);
+    }
+  };
+
+  const handleEndDateChange = (event, selectedDate) => {
+    setShowEndDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setEndDate(selectedDate);
+    }
+  };
+
   const validateForm = () => {
-    const { projectName, projectFrom, broughtBy } = formData;
+    const { projectName } = formData;
 
     if (!projectName.trim()) {
       Alert.alert('Error', 'Please enter project name');
-      return false;
-    }
-
-    if (!projectFrom.trim()) {
-      Alert.alert('Error', 'Please enter who the project is from');
-      return false;
-    }
-
-    if (!broughtBy.trim()) {
-      Alert.alert('Error', 'Please enter who brought the project');
       return false;
     }
 
@@ -115,23 +262,9 @@ const CreateProjectScreen = ({ navigation, route }) => {
       // Remove duplicates
       allWorkerIds = [...new Set(allWorkerIds)];
 
-      // Convert dd/mm/yyyy to ISO format for storage
-      let startDateISO = formatDateToISO(new Date());
-      let endDateISO = null;
-
-      if (formData.startDate.trim()) {
-        const parsedStart = parseDDMMYYYY(formData.startDate.trim());
-        if (parsedStart) {
-          startDateISO = formatDateToISO(parsedStart);
-        }
-      }
-
-      if (formData.endDate.trim()) {
-        const parsedEnd = parseDDMMYYYY(formData.endDate.trim());
-        if (parsedEnd) {
-          endDateISO = formatDateToISO(parsedEnd);
-        }
-      }
+      // Use selected dates only if provided
+      let startDateISO = startDate ? formatDateToISO(startDate) : null;
+      let endDateISO = endDate ? formatDateToISO(endDate) : null;
 
       const project = await createProject({
         orgId: session.orgId,
@@ -238,50 +371,86 @@ const CreateProjectScreen = ({ navigation, route }) => {
 
         <View style={styles.inputContainer}>
           <Building2 color={COLORS.gray} size={20} style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Project is from *"
-            placeholderTextColor={COLORS.gray}
-            value={formData.projectFrom}
-            onChangeText={value => handleChange('projectFrom', value)}
-            autoCapitalize="words"
-          />
+          <TouchableOpacity
+            style={styles.inputTouchable}
+            onPress={() => setShowProjectFromModal(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.inputText, !formData.projectFrom && styles.placeholderText]}>
+              {formData.projectFrom || 'Project is from (optional)'}
+            </Text>
+          </TouchableOpacity>
+          {formData.projectFrom ? (
+            <TouchableOpacity
+              onPress={() => handleChange('projectFrom', '')}
+              style={styles.clearButton}
+            >
+              <X color={COLORS.gray} size={18} />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <View style={styles.inputContainer}>
           <TrendingUp color={COLORS.gray} size={20} style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Project brought by *"
-            placeholderTextColor={COLORS.gray}
-            value={formData.broughtBy}
-            onChangeText={value => handleChange('broughtBy', value)}
-            autoCapitalize="words"
-          />
+          <TouchableOpacity
+            style={styles.inputTouchable}
+            onPress={() => setShowBroughtByModal(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.inputText, !formData.broughtBy && styles.placeholderText]}>
+              {formData.broughtBy || 'Project brought by (optional)'}
+            </Text>
+          </TouchableOpacity>
+          {formData.broughtBy ? (
+            <TouchableOpacity
+              onPress={() => handleChange('broughtBy', '')}
+              style={styles.clearButton}
+            >
+              <X color={COLORS.gray} size={18} />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <View style={styles.inputContainer}>
           <Calendar color={COLORS.gray} size={20} style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Start Date (dd/mm/yyyy)"
-            placeholderTextColor={COLORS.gray}
-            value={formData.startDate}
-            onChangeText={value => handleChange('startDate', value)}
-            keyboardType="numbers-and-punctuation"
-          />
+          <TouchableOpacity
+            style={styles.inputTouchable}
+            onPress={() => setShowStartDatePicker(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.inputText, !startDate && styles.placeholderText]}>
+              {startDate ? formatDateToDDMMYYYY(startDate) : 'Start Date (optional)'}
+            </Text>
+          </TouchableOpacity>
+          {startDate ? (
+            <TouchableOpacity
+              onPress={() => setStartDate(null)}
+              style={styles.clearButton}
+            >
+              <X color={COLORS.gray} size={18} />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <View style={styles.inputContainer}>
           <Calendar color={COLORS.gray} size={20} style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="End Date (dd/mm/yyyy)"
-            placeholderTextColor={COLORS.gray}
-            value={formData.endDate}
-            onChangeText={value => handleChange('endDate', value)}
-            keyboardType="numbers-and-punctuation"
-          />
+          <TouchableOpacity
+            style={styles.inputTouchable}
+            onPress={() => setShowEndDatePicker(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.inputText, !endDate && styles.placeholderText]}>
+              {endDate ? formatDateToDDMMYYYY(endDate) : 'End Date (optional)'}
+            </Text>
+          </TouchableOpacity>
+          {endDate ? (
+            <TouchableOpacity
+              onPress={() => setEndDate(null)}
+              style={styles.clearButton}
+            >
+              <X color={COLORS.gray} size={18} />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* Worker and Group Assignment Section */}
@@ -505,6 +674,328 @@ const CreateProjectScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Brought By Selection Modal */}
+      <Modal
+        visible={showBroughtByModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowBroughtByModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Project Brought By</Text>
+              <TouchableOpacity onPress={() => setShowBroughtByModal(false)}>
+                <X color={COLORS.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Employees Option */}
+              <TouchableOpacity
+                style={[styles.optionCard, broughtByType === 'employee' && styles.optionCardSelected]}
+                onPress={() => handleBroughtByOptionSelect('employee')}
+                activeOpacity={0.7}
+              >
+                <Users color={broughtByType === 'employee' ? COLORS.primary : COLORS.text} size={24} />
+                <View style={styles.optionCardContent}>
+                  <Text style={styles.optionCardTitle}>Employees</Text>
+                  <Text style={styles.optionCardSubtitle}>Select from organization employees</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Others Option */}
+              <TouchableOpacity
+                style={[styles.optionCard, broughtByType === 'other' && styles.optionCardSelected]}
+                onPress={() => handleBroughtByOptionSelect('other')}
+                activeOpacity={0.7}
+              >
+                <UserPlus color={broughtByType === 'other' ? COLORS.primary : COLORS.text} size={24} />
+                <View style={styles.optionCardContent}>
+                  <Text style={styles.optionCardTitle}>Others</Text>
+                  <Text style={styles.optionCardSubtitle}>Enter name manually</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Text Input for Others */}
+              {broughtByType === 'other' && (
+                <View style={styles.otherInputSection}>
+                  <TextInput
+                    style={styles.otherInput}
+                    placeholder="Enter name"
+                    placeholderTextColor={COLORS.gray}
+                    value={otherBroughtBy}
+                    onChangeText={setOtherBroughtBy}
+                    autoCapitalize="words"
+                  />
+                  <TouchableOpacity
+                    style={styles.submitButton}
+                    onPress={handleOtherBroughtBySubmit}
+                  >
+                    <Text style={styles.submitButtonText}>Confirm</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Employee List Modal */}
+      <Modal
+        visible={showEmployeeListModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEmployeeListModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Employee</Text>
+              <TouchableOpacity onPress={() => setShowEmployeeListModal(false)}>
+                <X color={COLORS.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={true}>
+              {employees.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Users color={COLORS.gray} size={48} />
+                  <Text style={styles.emptyText}>No employees found</Text>
+                </View>
+              ) : (
+                employees.map((employee) => (
+                  <TouchableOpacity
+                    key={employee.userId}
+                    style={styles.employeeCard}
+                    onPress={() => handleEmployeeSelect(employee)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.employeeCardContent}>
+                      <Text style={styles.employeeCardName}>{employee.name}</Text>
+                      {employee.designationName && (
+                        <View style={styles.designationPill}>
+                          <Text style={styles.designationPillText}>{employee.designationName}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Project From Selection Modal */}
+      <Modal
+        visible={showProjectFromModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowProjectFromModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Project is from</Text>
+              <TouchableOpacity onPress={() => setShowProjectFromModal(false)}>
+                <X color={COLORS.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <TouchableOpacity
+                style={styles.optionCard}
+                onPress={() => handleProjectFromOptionSelect('client_list')}
+                activeOpacity={0.7}
+              >
+                <Building2 color={COLORS.primary} size={24} />
+                <View style={styles.optionCardContent}>
+                  <Text style={styles.optionCardTitle}>Client List</Text>
+                  <Text style={styles.optionCardSubtitle}>Select from existing clients</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.optionCard}
+                onPress={() => handleProjectFromOptionSelect('new_client')}
+                activeOpacity={0.7}
+              >
+                <Plus color={COLORS.success} size={24} />
+                <View style={styles.optionCardContent}>
+                  <Text style={styles.optionCardTitle}>New Client</Text>
+                  <Text style={styles.optionCardSubtitle}>Add a new client</Text>
+                </View>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Client List Modal */}
+      <Modal
+        visible={showClientListModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowClientListModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Client</Text>
+              <TouchableOpacity onPress={() => setShowClientListModal(false)}>
+                <X color={COLORS.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+              <Search color={COLORS.gray} size={20} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search clients..."
+                placeholderTextColor={COLORS.gray}
+                value={clientSearchQuery}
+                onChangeText={setClientSearchQuery}
+              />
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={true} style={styles.modalScroll}>
+              {getFilteredClients().length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Building2 color={COLORS.gray} size={48} />
+                  <Text style={styles.emptyText}>
+                    {clientSearchQuery ? 'No clients found' : 'No clients available'}
+                  </Text>
+                  {!clientSearchQuery && (
+                    <Text style={styles.emptySubtext}>Add clients first</Text>
+                  )}
+                </View>
+              ) : (
+                getFilteredClients().map((client) => (
+                  <TouchableOpacity
+                    key={client.clientId}
+                    style={styles.clientCard}
+                    onPress={() => handleClientSelect(client)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.clientCardContent}>
+                      <Text style={styles.clientCardName}>{client.name}</Text>
+                      {client.contactNumber && (
+                        <View style={styles.clientCardRow}>
+                          <Phone color={COLORS.gray} size={14} />
+                          <Text style={styles.clientCardDetail}>{client.contactNumber}</Text>
+                        </View>
+                      )}
+                      {client.address && (
+                        <View style={styles.clientCardRow}>
+                          <MapPin color={COLORS.gray} size={14} />
+                          <Text style={styles.clientCardDetail}>{client.address}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Client Modal */}
+      <Modal
+        visible={showAddClientModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAddClientModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add New Client</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowAddClientModal(false);
+                  resetClientForm();
+                }}
+              >
+                <X color={COLORS.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.formSection}>
+                <Text style={styles.formLabel}>Client Name *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Enter client or company name"
+                  placeholderTextColor={COLORS.gray}
+                  value={newClientName}
+                  onChangeText={setNewClientName}
+                  autoCapitalize="words"
+                />
+              </View>
+
+              <View style={styles.formSection}>
+                <Text style={styles.formLabel}>Contact Number (Optional)</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Enter contact number"
+                  placeholderTextColor={COLORS.gray}
+                  value={newClientContact}
+                  onChangeText={setNewClientContact}
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.formSection}>
+                <Text style={styles.formLabel}>Address (Optional)</Text>
+                <TextInput
+                  style={[styles.formInput, styles.formTextArea]}
+                  placeholder="Enter address"
+                  placeholderTextColor={COLORS.gray}
+                  value={newClientAddress}
+                  onChangeText={setNewClientAddress}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.submitButton, savingClient && styles.buttonDisabled]}
+                onPress={handleAddNewClient}
+                disabled={savingClient}
+              >
+                <Text style={styles.submitButtonText}>
+                  {savingClient ? 'Adding...' : 'Add Client'}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Date Pickers */}
+      {showStartDatePicker && (
+        <DateTimePicker
+          value={startDate || new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleStartDateChange}
+        />
+      )}
+
+      {showEndDatePicker && (
+        <DateTimePicker
+          value={endDate || new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleEndDateChange}
+          minimumDate={startDate || new Date()}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 };
@@ -575,6 +1066,20 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: COLORS.text,
+  },
+  inputText: {
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  inputTouchable: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  clearButton: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   textArea: {
     height: '100%',
@@ -757,6 +1262,156 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontWeight: '600',
+  },
+  placeholderText: {
+    color: COLORS.gray,
+  },
+  optionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+  },
+  optionCardSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary + '10',
+  },
+  optionCardContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  optionCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  optionCardSubtitle: {
+    fontSize: 13,
+    color: COLORS.textLight,
+  },
+  otherInputSection: {
+    marginTop: 16,
+    gap: 12,
+  },
+  otherInput: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: COLORS.text,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  submitButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  submitButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  employeeCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  employeeCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  employeeCardName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    flex: 1,
+  },
+  designationPill: {
+    backgroundColor: COLORS.primary + '20',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginLeft: 8,
+  },
+  designationPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 16,
+    gap: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  clientCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  clientCardContent: {
+    gap: 8,
+  },
+  clientCardName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  clientCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  clientCardDetail: {
+    fontSize: 14,
+    color: COLORS.textLight,
+  },
+  formSection: {
+    marginBottom: 16,
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  formInput: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  formTextArea: {
+    height: 100,
+    textAlignVertical: 'top',
   },
 });
 

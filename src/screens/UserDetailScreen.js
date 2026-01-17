@@ -10,6 +10,9 @@ import {
   Modal,
   TextInput,
   Platform,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import {
   X,
@@ -67,6 +70,7 @@ const UserDetailScreen = ({ navigation, route }) => {
 
   // Work log modal states
   const [showWorkLogModal, setShowWorkLogModal] = useState(false);
+  const [workLogTab, setWorkLogTab] = useState('single'); // 'single' or 'multiple'
   const [selectedProject, setSelectedProject] = useState(null);
   const [allProjects, setAllProjects] = useState([]);
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -406,6 +410,115 @@ const UserDetailScreen = ({ navigation, route }) => {
       console.error('Error updating clock-in requirement:', error);
       Alert.alert('Error', 'Failed to update clock-in requirement');
       setRequiresClockIn(!value);
+    }
+  };
+
+  const handleLogMultipleDaysWork = async () => {
+    // Prevent Super Admin from logging work for workers assigned to admins
+    if (session.role === ROLES.SUPER_ADMIN && user.adminId) {
+      Alert.alert(
+        'Access Denied',
+        `This worker is assigned to ${
+          assignedAdmin?.name || 'an admin'
+        }. Only the assigned admin can log work hours for this worker.`,
+      );
+      return;
+    }
+
+    if (!selectedProject) {
+      Alert.alert('Error', 'Please select a project');
+      return;
+    }
+
+    if (!startTime || !endTime) {
+      Alert.alert('Error', 'Start and end time are required');
+      return;
+    }
+
+    // Check if end date/time is after start date/time
+    const startDateTime = new Date(startDate);
+    startDateTime.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0);
+
+    const endDateTime = new Date(endDate);
+    endDateTime.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0);
+
+    if (endDateTime <= startDateTime) {
+      Alert.alert('Error', 'End date/time must be after start date/time');
+      return;
+    }
+
+    setLoggingWork(true);
+    try {
+      // Calculate total hours
+      const totalMs = endDateTime.getTime() - startDateTime.getTime();
+      let totalHours = totalMs / (1000 * 60 * 60);
+
+      // Subtract break duration if provided
+      if (breakDuration) {
+        const breakMinutes = parseInt(breakDuration);
+        if (!isNaN(breakMinutes)) {
+          totalHours -= breakMinutes / 60;
+        }
+      }
+
+      if (totalHours <= 0) {
+        Alert.alert('Error', 'Work duration must be positive');
+        setLoggingWork(false);
+        return;
+      }
+
+      // Calculate number of days
+      const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      // Distribute hours across days
+      const hoursPerDay = totalHours / daysDiff;
+
+      // Create work log for each day
+      const workLogsCreated = [];
+      for (let i = 0; i < daysDiff; i++) {
+        const currentDate = new Date(startDate);
+        currentDate.setDate(startDate.getDate() + i);
+
+        const workLogData = {
+          userId: userId,
+          orgId: user.orgId,
+          projectId: selectedProject.projectId,
+          date: currentDate.toISOString().split('T')[0],
+          startTime: i === 0 ? startTime.toISOString() : null,
+          endTime: i === daysDiff - 1 ? endTime.toISOString() : null,
+          hours: hoursPerDay.toFixed(2),
+          breakDuration: i === 0 && breakDuration ? parseInt(breakDuration) : 0,
+          loggedBy: session.userId,
+        };
+
+        await createWorkLog(workLogData);
+        workLogsCreated.push(currentDate.toLocaleDateString());
+      }
+
+      Alert.alert(
+        'Success',
+        `Work logs created for ${daysDiff} days:\n${workLogsCreated.join('\n')}\nTotal: ${totalHours.toFixed(2)} hours`,
+      );
+
+      // Reset modal
+      setShowWorkLogModal(false);
+      setSelectedProject(null);
+      setStartDate(new Date());
+      setEndDate(new Date());
+      setStartTime(new Date());
+      setEndTime(null);
+      setDurationHours('');
+      setDurationMinutes('');
+      setBreakDuration('');
+      setWorkLogTab('single');
+
+      // Reload stats
+      await loadWorkerStats(userId);
+    } catch (error) {
+      console.error('Error logging multiple days work:', error);
+      Alert.alert('Error', 'Failed to log work hours');
+    } finally {
+      setLoggingWork(false);
     }
   };
 
@@ -937,16 +1050,59 @@ const UserDetailScreen = ({ navigation, route }) => {
         animationType="slide"
         onRequestClose={() => setShowWorkLogModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Log Work Hours</Text>
-              <TouchableOpacity onPress={() => setShowWorkLogModal(false)}>
-                <X color={COLORS.text} size={24} />
-              </TouchableOpacity>
-            </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Log Work Hours</Text>
+                <TouchableOpacity onPress={() => setShowWorkLogModal(false)}>
+                  <X color={COLORS.text} size={24} />
+                </TouchableOpacity>
+              </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Tab Selector */}
+              <View style={styles.tabContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.tab,
+                  workLogTab === 'single' && styles.tabActive,
+                ]}
+                onPress={() => setWorkLogTab('single')}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    workLogTab === 'single' && styles.tabTextActive,
+                  ]}
+                >
+                  Single Day
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.tab,
+                  workLogTab === 'multiple' && styles.tabActive,
+                ]}
+                onPress={() => setWorkLogTab('multiple')}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    workLogTab === 'multiple' && styles.tabTextActive,
+                  ]}
+                >
+                  Multiple Days
+                </Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
               {/* Project Selection Button */}
               <Text style={styles.sectionTitle}>Project</Text>
               <TouchableOpacity
@@ -970,6 +1126,9 @@ const UserDetailScreen = ({ navigation, route }) => {
                 </Text>
               </TouchableOpacity>
 
+              {/* SINGLE DAY TAB CONTENT */}
+              {workLogTab === 'single' && (
+                <>
               {/* Row 1: Start Date and Start Time */}
               <View style={styles.dateTimeRow}>
                 <View style={styles.dateTimeColumn}>
@@ -1169,6 +1328,140 @@ const UserDetailScreen = ({ navigation, route }) => {
                   onChangeText={setBreakDuration}
                 />
               </View>
+                </>
+              )}
+
+              {/* MULTIPLE DAYS TAB CONTENT */}
+              {workLogTab === 'multiple' && (
+                <>
+              {/* Start Date and Time */}
+              <View style={styles.dateTimeRow}>
+                <View style={styles.dateTimeColumn}>
+                  <Text style={styles.sectionTitle}>Start Date *</Text>
+                  <TouchableOpacity
+                    style={styles.smallButton}
+                    onPress={() => setShowStartDatePicker(true)}
+                  >
+                    <Calendar color={COLORS.primary} size={18} />
+                    <Text style={styles.smallButtonText}>
+                      {formatDate(startDate)}
+                    </Text>
+                  </TouchableOpacity>
+                  {showStartDatePicker && (
+                    <DateTimePicker
+                      value={startDate}
+                      mode="date"
+                      display="default"
+                      onChange={(event, date) => {
+                        setShowStartDatePicker(Platform.OS === 'ios');
+                        if (date) setStartDate(date);
+                      }}
+                    />
+                  )}
+                </View>
+
+                <View style={styles.dateTimeColumn}>
+                  <Text style={styles.sectionTitle}>Start Time *</Text>
+                  <TouchableOpacity
+                    style={styles.smallButton}
+                    onPress={() => setShowStartTimePicker(true)}
+                  >
+                    <Timer color={COLORS.primary} size={18} />
+                    <Text style={styles.smallButtonText}>
+                      {formatTime(startTime)}
+                    </Text>
+                  </TouchableOpacity>
+                  {showStartTimePicker && (
+                    <DateTimePicker
+                      value={startTime}
+                      mode="time"
+                      display="default"
+                      onChange={(event, time) => {
+                        setShowStartTimePicker(Platform.OS === 'ios');
+                        if (time) setStartTime(time);
+                      }}
+                    />
+                  )}
+                </View>
+              </View>
+
+              {/* End Date and Time */}
+              <View style={styles.dateTimeRow}>
+                <View style={styles.dateTimeColumn}>
+                  <Text style={styles.sectionTitle}>End Date *</Text>
+                  <TouchableOpacity
+                    style={styles.smallButton}
+                    onPress={() => setShowEndDatePicker(true)}
+                  >
+                    <Calendar color={COLORS.primary} size={18} />
+                    <Text style={styles.smallButtonText}>
+                      {formatDate(endDate)}
+                    </Text>
+                  </TouchableOpacity>
+                  {showEndDatePicker && (
+                    <DateTimePicker
+                      value={endDate}
+                      mode="date"
+                      display="default"
+                      onChange={(event, date) => {
+                        setShowEndDatePicker(Platform.OS === 'ios');
+                        if (date) setEndDate(date);
+                      }}
+                    />
+                  )}
+                </View>
+
+                <View style={styles.dateTimeColumn}>
+                  <Text style={styles.sectionTitle}>End Time *</Text>
+                  <TouchableOpacity
+                    style={styles.smallButton}
+                    onPress={() => setShowEndTimePicker(true)}
+                  >
+                    <Timer color={COLORS.primary} size={18} />
+                    <Text style={styles.smallButtonText}>
+                      {endTime ? formatTime(endTime) : 'Select'}
+                    </Text>
+                  </TouchableOpacity>
+                  {showEndTimePicker && (
+                    <DateTimePicker
+                      value={endTime || new Date()}
+                      mode="time"
+                      display="default"
+                      onChange={(event, time) => {
+                        setShowEndTimePicker(Platform.OS === 'ios');
+                        if (time) setEndTime(time);
+                      }}
+                    />
+                  )}
+                </View>
+              </View>
+
+              {/* Break Duration (Optional) */}
+              <Text style={styles.sectionTitle}>Break Duration (Optional)</Text>
+              <View style={styles.breakInputContainer}>
+                <Coffee
+                  color={COLORS.gray}
+                  size={20}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.breakInput}
+                  placeholder="Total break in minutes (e.g., 30)"
+                  placeholderTextColor={COLORS.gray}
+                  keyboardType="number-pad"
+                  value={breakDuration}
+                  onChangeText={setBreakDuration}
+                />
+              </View>
+
+              {/* Info Note */}
+              <View style={styles.multiDayInfoCard}>
+                <Text style={styles.multiDayInfoText}>
+                  💡 Work hours will be automatically distributed across all days
+                </Text>
+              </View>
+                </>
+              )}
 
               {/* Submit Button */}
               <TouchableOpacity
@@ -1176,16 +1469,17 @@ const UserDetailScreen = ({ navigation, route }) => {
                   styles.submitButton,
                   loggingWork && styles.submitButtonDisabled,
                 ]}
-                onPress={handleLogWork}
+                onPress={workLogTab === 'multiple' ? handleLogMultipleDaysWork : handleLogWork}
                 disabled={loggingWork}
               >
-                <Text style={styles.submitButtonText}>
-                  {loggingWork ? 'Logging...' : 'Log Work Hours'}
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
+                  <Text style={styles.submitButtonText}>
+                    {loggingWork ? 'Logging...' : 'Log Work Hours'}
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Project Selection Modal */}
@@ -1266,16 +1560,21 @@ const UserDetailScreen = ({ navigation, route }) => {
         animationType="slide"
         onRequestClose={() => setShowDurationModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.selectionModalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Enter Duration</Text>
-              <TouchableOpacity onPress={() => setShowDurationModal(false)}>
-                <X color={COLORS.text} size={24} />
-              </TouchableOpacity>
-            </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.selectionModalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Enter Duration</Text>
+                  <TouchableOpacity onPress={() => setShowDurationModal(false)}>
+                    <X color={COLORS.text} size={24} />
+                  </TouchableOpacity>
+                </View>
 
-            <View style={styles.durationModalInputs}>
+                <View style={styles.durationModalInputs}>
               <View style={styles.durationInputContainer}>
                 <TextInput
                   style={styles.durationInput}
@@ -1321,11 +1620,13 @@ const UserDetailScreen = ({ navigation, route }) => {
                   }
                 }}
               >
-                <Text style={styles.modalConfirmText}>Done</Text>
-              </TouchableOpacity>
+                  <Text style={styles.modalConfirmText}>Done</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Admin Selection Modal */}
@@ -1666,7 +1967,7 @@ const UserDetailScreen = ({ navigation, route }) => {
                     </View>
                     <View style={styles.listModalInfo}>
                       <Text style={styles.listModalItemTitle}>
-                        {project.name}
+                        {project.projectName}
                       </Text>
                       <Text style={styles.listModalItemSubtitle}>
                         {project.description || 'No description'}
@@ -2326,6 +2627,43 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: COLORS.text,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  tabActive: {
+    backgroundColor: COLORS.primary,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textLight,
+  },
+  tabTextActive: {
+    color: COLORS.white,
+  },
+  multiDayInfoCard: {
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '30',
+  },
+  multiDayInfoText: {
+    fontSize: 13,
+    color: COLORS.primary,
+    textAlign: 'center',
   },
   sectionTitle: {
     fontSize: 15,

@@ -7,6 +7,8 @@ import {
   ScrollView,
   Alert,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Clock, Plus, X, Save } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
@@ -95,6 +97,7 @@ const WorkLogScreen = ({ navigation }) => {
         workEnd,
         breaks: breaks.filter(b => b.start && b.end),
         totalHours: parseFloat(totalHours),
+        loggedBy: session.userId, // Self-logged
       });
 
       if (workLog) {
@@ -113,7 +116,10 @@ const WorkLogScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
           <X color={COLORS.text} size={24} />
@@ -122,7 +128,11 @@ const WorkLogScreen = ({ navigation }) => {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.sectionTitle}>Work Hours</Text>
 
         <View style={styles.timeRow}>
@@ -226,7 +236,7 @@ const WorkLogScreen = ({ navigation }) => {
           </Text>
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
