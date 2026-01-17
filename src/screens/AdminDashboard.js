@@ -137,25 +137,25 @@ const AdminDashboard = ({ navigation }) => {
     {
       icon: Camera,
       title: 'Attendance',
-      subtitle: 'Track records',
+      subtitle: 'Track team records',
       color: '#6366F1',
-      gradient: ['#6366F1', '#8B5CF6'],
+      bgColor: '#EEF2FF',
       onPress: () => navigation.navigate('AttendanceRecords'),
     },
     {
       icon: FileText,
       title: 'Work Logs',
-      subtitle: 'View activities',
+      subtitle: 'Daily activities',
       color: '#EC4899',
-      gradient: ['#EC4899', '#F43F5E'],
+      bgColor: '#FDF2F8',
       onPress: () => navigation.navigate('WorkLogsView'),
     },
     {
       icon: Activity,
       title: 'Reports',
-      subtitle: 'Download data',
+      subtitle: 'Export & download',
       color: '#10B981',
-      gradient: ['#10B981', '#059669'],
+      bgColor: '#ECFDF5',
       onPress: () => navigation.navigate('Report'),
     },
   ];
@@ -324,27 +324,23 @@ const AdminDashboard = ({ navigation }) => {
 
         {/* Quick Actions Grid */}
         <View style={styles.quickSection}>
-          <Text style={styles.sectionLabel}>Quick Access</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>Quick Access</Text>
+            <Text style={styles.sectionCount}>{quickActions.length}</Text>
+          </View>
           <View style={styles.quickGrid}>
             {quickActions.map((action, index) => (
               <TouchableOpacity
                 key={index}
                 style={styles.quickCard}
                 onPress={action.onPress}
-                activeOpacity={0.85}
+                activeOpacity={0.7}
               >
-                <View
-                  style={[
-                    styles.quickIconBox,
-                    { backgroundColor: `${action.color}15` },
-                  ]}
-                >
-                  <action.icon color={action.color} size={22} />
+                <View style={[styles.quickIconBox, { backgroundColor: action.bgColor }]}>
+                  <action.icon color={action.color} size={28} />
                 </View>
-                <View style={styles.quickTextContainer}>
-                  <Text style={styles.quickTitle}>{action.title}</Text>
-                  <Text style={styles.quickSubtitle}>{action.subtitle}</Text>
-                </View>
+                <Text style={styles.quickTitle}>{action.title}</Text>
+                <Text style={styles.quickSubtitle}>{action.subtitle}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -352,14 +348,17 @@ const AdminDashboard = ({ navigation }) => {
 
         {/* Management Grid */}
         <View style={styles.managementSection}>
-          <Text style={styles.sectionLabel}>Management</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>Management</Text>
+            <Text style={styles.sectionCount}>{menuItems.length}</Text>
+          </View>
           <View style={styles.managementGrid}>
             {menuItems.map((item, index) => (
               <TouchableOpacity
                 key={index}
                 style={styles.managementCard}
                 onPress={item.onPress}
-                activeOpacity={0.85}
+                activeOpacity={0.7}
               >
                 <View
                   style={[
@@ -592,96 +591,116 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
   },
   quickSection: {
-    marginBottom: 28,
+    marginBottom: 32,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
   sectionLabel: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 14,
+    letterSpacing: -0.5,
+  },
+  sectionCount: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   quickGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 12,
   },
   quickCard: {
     flex: 1,
-    minWidth: '30%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 12,
-    flexDirection: 'row',
+    borderRadius: 16,
+    padding: 20,
     alignItems: 'center',
-    gap: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   quickIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+    width: 64,
+    height: 64,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  quickTextContainer: {
-    flex: 1,
+    marginBottom: 12,
   },
   quickTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#111827',
+    marginBottom: 4,
+    textAlign: 'center',
   },
   quickSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 16,
   },
   managementSection: {
     marginBottom: 24,
   },
   managementGrid: {
-    gap: 12,
+    gap: 14,
   },
   managementCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 18,
+    padding: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   managementIconBox: {
-    width: 70,
-    height: 70,
-    borderRadius: 16,
+    width: 76,
+    height: 76,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   managementLottie: {
-    width: 60,
-    height: 60,
+    width: 64,
+    height: 64,
   },
   managementInfo: {
     flex: 1,
   },
   managementTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: '#111827',
-    marginBottom: 3,
+    marginBottom: 4,
+    letterSpacing: -0.3,
   },
   managementSubtitle: {
     fontSize: 13,
     color: '#6B7280',
+    lineHeight: 18,
   },
 });
 
