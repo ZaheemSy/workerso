@@ -50,6 +50,8 @@ const SuperAdminDashboard = ({ navigation }) => {
       title: 'Hierarchy Manager',
       subtitle: 'Define power structure',
       color: '#8B5CF6',
+      number: '1',
+      numberColor: '#C4B5FD',
       onPress: () => navigation.navigate('HierarchyManager'),
     },
     {
@@ -57,6 +59,8 @@ const SuperAdminDashboard = ({ navigation }) => {
       title: 'Designations',
       subtitle: 'Manage job titles',
       color: COLORS.primary,
+      number: '2',
+      numberColor: '#A5B4FC',
       onPress: () => navigation.navigate('Designations'),
     },
     {
@@ -64,6 +68,8 @@ const SuperAdminDashboard = ({ navigation }) => {
       title: 'Employees',
       subtitle: 'Manage all employees',
       color: COLORS.success,
+      number: '3',
+      numberColor: '#6EE7B7',
       onPress: () => navigation.navigate('Employees'),
     },
     {
@@ -71,6 +77,9 @@ const SuperAdminDashboard = ({ navigation }) => {
       title: 'Employees Groups',
       subtitle: 'Manage employee teams',
       color: COLORS.secondary,
+      number: '4',
+      numberColor: '#FCA5A5',
+      optional: true,
       onPress: () => navigation.navigate('WorkerGroupsList'),
     },
     {
@@ -78,6 +87,9 @@ const SuperAdminDashboard = ({ navigation }) => {
       title: 'All Clients',
       subtitle: 'Manage client database',
       color: '#EC4899',
+      number: '5',
+      numberColor: '#F9A8D4',
+      optional: true,
       onPress: () => navigation.navigate('Clients'),
     },
     {
@@ -85,6 +97,8 @@ const SuperAdminDashboard = ({ navigation }) => {
       title: 'All Projects',
       subtitle: 'Organization projects',
       color: COLORS.warning,
+      number: '6',
+      numberColor: '#FCD34D',
       onPress: () => navigation.navigate('ProjectList'),
     },
     {
@@ -199,6 +213,18 @@ const SuperAdminDashboard = ({ navigation }) => {
               onPress={item.onPress}
               activeOpacity={0.7}
             >
+              {item.number && (
+                <View style={styles.numberContainer}>
+                  <Text style={[styles.numberText, { color: item.numberColor }]}>
+                    {item.number}
+                  </Text>
+                  {item.optional && (
+                    <Text style={[styles.optionalText, { color: item.numberColor }]}>
+                      OPT
+                    </Text>
+                  )}
+                </View>
+              )}
               <View
                 style={[
                   styles.iconContainer,
@@ -403,6 +429,28 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 3,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  numberContainer: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    alignItems: 'center',
+  },
+  numberText: {
+    fontSize: 52,
+    fontWeight: '900',
+    opacity: 0.12,
+    lineHeight: 52,
+    letterSpacing: -2,
+  },
+  optionalText: {
+    fontSize: 9,
+    fontWeight: '800',
+    opacity: 0.25,
+    marginTop: -8,
+    letterSpacing: 0.5,
   },
   iconContainer: {
     width: 56,
