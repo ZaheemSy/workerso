@@ -227,7 +227,9 @@ const AdminDashboard = ({ navigation }) => {
                 <Text style={styles.userName}>{session?.name || 'Admin'}</Text>
                 <View style={styles.adminBadge}>
                   <Sparkles color="#F59E0B" size={11} />
-                  <Text style={styles.adminText}>{session?.designation || 'Admin'}</Text>
+                  <Text style={styles.adminText}>
+                    {session?.designation || 'Admin'}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -336,7 +338,12 @@ const AdminDashboard = ({ navigation }) => {
                 onPress={action.onPress}
                 activeOpacity={0.7}
               >
-                <View style={[styles.quickIconBox, { backgroundColor: action.bgColor }]}>
+                <View
+                  style={[
+                    styles.quickIconBox,
+                    { backgroundColor: action.bgColor },
+                  ]}
+                >
                   <action.icon color={action.color} size={28} />
                 </View>
                 <Text style={styles.quickTitle}>{action.title}</Text>
@@ -642,7 +649,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   quickTitle: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: '700',
     color: '#111827',
     marginBottom: 4,

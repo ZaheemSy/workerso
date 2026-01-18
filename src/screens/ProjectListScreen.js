@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput 
 import { Briefcase, Plus, X, ChevronRight, Users, Calendar, Search } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
+import { ROLES } from '../constants/roles';
 import { getProjectsByOrg } from '../services/storageService';
 
 const ProjectListScreen = ({ navigation }) => {
@@ -18,7 +19,25 @@ const ProjectListScreen = ({ navigation }) => {
   const loadProjects = async () => {
     setLoading(true);
     try {
-      const projectData = await getProjectsByOrg(session.orgId);
+      let projectData = await getProjectsByOrg(session.orgId);
+
+      // Role-based filtering
+      if (session.role === ROLES.ADMIN) {
+        // Power 2 - Admin sees only projects they manage or are assigned to
+        projectData = projectData.filter(project => {
+          // Check if admin is the project manager
+          if (project.managerId === session.userId) {
+            return true;
+          }
+          // Check if admin is assigned to the project
+          if (project.admins && project.admins.includes(session.userId)) {
+            return true;
+          }
+          return false;
+        });
+      }
+      // Super Admin (Power 1) sees all projects - no filtering needed
+
       setProjects(projectData);
     } catch (error) {
       console.error('Error loading projects:', error);

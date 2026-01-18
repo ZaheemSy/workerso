@@ -29,8 +29,8 @@ import { useAuth } from '../contexts/AuthContext';
 import LottieView from 'lottie-react-native';
 
 // ⚙️ FADE OPACITY SETTINGS - Adjust these values to change number visibility
-const NUMBER_FADE_OPACITY = 0.12;  // Main number opacity (0.0 to 1.0) - Lower = more faded
-const OPTIONAL_FADE_OPACITY = 0.25; // "OPT" label opacity (0.0 to 1.0) - Lower = more faded
+const NUMBER_FADE_OPACITY = 0.2; // Main number opacity (0.0 to 1.0) - Lower = more faded
+const OPTIONAL_FADE_OPACITY = 0.2; // "OPT" label opacity (0.0 to 1.0) - Lower = more faded
 
 const SuperAdminDashboard = ({ navigation }) => {
   const { session, logout } = useAuth();
@@ -219,11 +219,15 @@ const SuperAdminDashboard = ({ navigation }) => {
             >
               {item.number && (
                 <View style={styles.numberContainer}>
-                  <Text style={[styles.numberText, { color: item.numberColor }]}>
+                  <Text
+                    style={[styles.numberText, { color: item.numberColor }]}
+                  >
                     {item.number}
                   </Text>
                   {item.optional && (
-                    <Text style={[styles.optionalText, { color: item.numberColor }]}>
+                    <Text
+                      style={[styles.optionalText, { color: item.numberColor }]}
+                    >
                       OPT
                     </Text>
                   )}

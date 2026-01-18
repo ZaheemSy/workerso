@@ -13,6 +13,7 @@ import {
 import { X, Plus, Briefcase, Trash2, Search, Circle, ChevronDown } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
+import { ROLES } from '../constants/roles';
 import {
   getDesignationsByOrg,
   createDesignation,
@@ -51,7 +52,15 @@ const DesignationsScreen = ({ navigation }) => {
       const stored = await AsyncStorage.getItem(key);
       if (stored) {
         const hierarchy = JSON.parse(stored);
-        const extractedRoles = extractRolesFromTree(hierarchy);
+        let extractedRoles = extractRolesFromTree(hierarchy);
+
+        // Role-based filtering
+        if (session.role === ROLES.ADMIN) {
+          // Power 2 - Admin can only see Power 3 roles (level 2 and above)
+          extractedRoles = extractedRoles.filter(role => role.level >= 2);
+        }
+        // Super Admin (Power 1) sees all roles - no filtering needed
+
         setRoles(extractedRoles);
       }
     } catch (error) {
@@ -67,6 +76,7 @@ const DesignationsScreen = ({ navigation }) => {
       rolesList.push({
         id: node.id,
         name: node.name,
+        level: node.level, // Include level for filtering
       });
     }
 
@@ -139,9 +149,21 @@ const DesignationsScreen = ({ navigation }) => {
   };
 
   const filteredDesignations = designations.filter((designation) => {
+    // First filter by search query
     const query = searchQuery.toLowerCase();
     const name = designation.name?.toLowerCase() || '';
-    return name.includes(query);
+    const matchesSearch = name.includes(query);
+
+    // Then filter by role (based on user's power level)
+    if (session.role === ROLES.ADMIN) {
+      // Admin can only see designations with Power 3 roles
+      const allowedRoleIds = roles.map(r => r.id);
+      const hasAllowedRole = designation.roleId && allowedRoleIds.includes(designation.roleId);
+      return matchesSearch && hasAllowedRole;
+    }
+
+    // Super Admin can see all designations
+    return matchesSearch;
   });
 
   const renderDesignation = ({ item }) => (
