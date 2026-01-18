@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { getSession, saveSession, clearSession, authenticateUser } from '../services/storageService';
+import { getSession, saveSession, clearSession, authenticateUser, initializeDeveloperUser } from '../services/storageService';
 
 const AuthContext = createContext();
 
@@ -21,6 +21,9 @@ export const AuthProvider = ({ children }) => {
 
   const checkSession = async () => {
     try {
+      // Initialize developer user on app start
+      await initializeDeveloperUser();
+
       const savedSession = await getSession();
       if (savedSession && savedSession.isLoggedIn) {
         setSession(savedSession);

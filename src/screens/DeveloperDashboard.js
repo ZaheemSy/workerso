@@ -1,9 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { Code, Database, Users, Building2, Briefcase, LogOut, RefreshCw } from 'lucide-react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Modal,
+  Pressable,
+} from 'react-native';
+import {
+  Code,
+  Database,
+  Users,
+  Building2,
+  Briefcase,
+  LogOut,
+  RefreshCw,
+  Play,
+  UserCircle,
+  Sparkles,
+} from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
-import { getOrganizations, getUsers, getProjects, getAttendanceByOrg, getWorkLogsByOrg } from '../services/storageService';
+import {
+  getOrganizations,
+  getUsers,
+  getProjects,
+  getAttendanceByOrg,
+  getWorkLogsByOrg,
+} from '../services/storageService';
+import SplashScreen from './SplashScreen';
 
 const DeveloperDashboard = () => {
   const { logout } = useAuth();
@@ -16,6 +43,8 @@ const DeveloperDashboard = () => {
   });
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showSplashModal, setShowSplashModal] = useState(false);
+  const [tapCount, setTapCount] = useState(0);
 
   useEffect(() => {
     loadDeveloperData();
@@ -58,39 +87,72 @@ const DeveloperDashboard = () => {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-          },
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
         },
-      ]
-    );
+      },
+    ]);
+  };
+
+  const handleSplashTap = () => {
+    const newCount = tapCount + 1;
+    setTapCount(newCount);
+
+    if (newCount >= 5) {
+      setShowSplashModal(false);
+      setTapCount(0);
+    }
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View>
-          <View style={styles.developerBadge}>
-            <Code color={COLORS.white} size={16} />
-            <Text style={styles.developerText}>Developer Mode</Text>
+        <View style={styles.headerTop}>
+          {/* Developer Avatar */}
+          <View style={styles.avatarContainer}>
+            <UserCircle color="#10B981" size={42} strokeWidth={2.5} />
           </View>
-          <Text style={styles.name}>System Overview</Text>
-          <Text style={styles.role}>Global Access</Text>
+
+          {/* Name and Info */}
+          <View style={styles.headerInfo}>
+            <View style={styles.nameRow}>
+              <Text style={styles.developerName}>Zaheem</Text>
+              <Sparkles color="#F59E0B" size={20} fill="#F59E0B" />
+            </View>
+            <View style={styles.badgeRow}>
+              <View style={styles.roleBadge}>
+                <Code color="#10B981" size={12} />
+                <Text style={styles.roleText}>Developer</Text>
+              </View>
+              <View style={styles.accessBadge}>
+                <Text style={styles.accessText}>Full Access</Text>
+              </View>
+            </View>
+            <Text style={styles.subtitle}>System Overview & Control</Text>
+          </View>
         </View>
+
+        {/* Action Buttons Row */}
         <View style={styles.headerActions}>
-          <TouchableOpacity onPress={loadDeveloperData} style={styles.refreshButton}>
-            <RefreshCw color={COLORS.primary} size={24} />
+          <TouchableOpacity
+            onPress={() => setShowSplashModal(true)}
+            style={styles.playButton}
+          >
+            <Play color="#10B981" size={20} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={loadDeveloperData}
+            style={styles.refreshButton}
+          >
+            <RefreshCw color="#6366F1" size={20} />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-            <LogOut color={COLORS.danger} size={24} />
+            <LogOut color="#EF4444" size={20} />
           </TouchableOpacity>
         </View>
       </View>
@@ -99,25 +161,45 @@ const DeveloperDashboard = () => {
         <Text style={styles.sectionTitle}>System Statistics</Text>
 
         <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { backgroundColor: COLORS.primary + '15' }]}>
+          <View
+            style={[
+              styles.statCard,
+              { backgroundColor: COLORS.primary + '15' },
+            ]}
+          >
             <Building2 color={COLORS.primary} size={28} />
             <Text style={styles.statValue}>{stats.totalOrgs}</Text>
             <Text style={styles.statLabel}>Organizations</Text>
           </View>
 
-          <View style={[styles.statCard, { backgroundColor: COLORS.secondary + '15' }]}>
+          <View
+            style={[
+              styles.statCard,
+              { backgroundColor: COLORS.secondary + '15' },
+            ]}
+          >
             <Users color={COLORS.secondary} size={28} />
             <Text style={styles.statValue}>{stats.totalUsers}</Text>
             <Text style={styles.statLabel}>Total Users</Text>
           </View>
 
-          <View style={[styles.statCard, { backgroundColor: COLORS.warning + '15' }]}>
+          <View
+            style={[
+              styles.statCard,
+              { backgroundColor: COLORS.warning + '15' },
+            ]}
+          >
             <Briefcase color={COLORS.warning} size={28} />
             <Text style={styles.statValue}>{stats.totalProjects}</Text>
             <Text style={styles.statLabel}>Projects</Text>
           </View>
 
-          <View style={[styles.statCard, { backgroundColor: COLORS.success + '15' }]}>
+          <View
+            style={[
+              styles.statCard,
+              { backgroundColor: COLORS.success + '15' },
+            ]}
+          >
             <Database color={COLORS.success} size={28} />
             <Text style={styles.statValue}>{stats.totalAttendance}</Text>
             <Text style={styles.statLabel}>Attendance Records</Text>
@@ -132,7 +214,7 @@ const DeveloperDashboard = () => {
             <Text style={styles.emptyText}>No organizations created yet</Text>
           </View>
         ) : (
-          organizations.map((org) => (
+          organizations.map(org => (
             <View key={org.orgId} style={styles.orgCard}>
               <View style={styles.orgIcon}>
                 <Building2 color={COLORS.primary} size={24} />
@@ -148,6 +230,24 @@ const DeveloperDashboard = () => {
           ))
         )}
       </ScrollView>
+
+      {/* Splash Screen Preview Modal */}
+      <Modal
+        visible={showSplashModal}
+        transparent={false}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowSplashModal(false);
+          setTapCount(0);
+        }}
+      >
+        <Pressable style={styles.splashModalWrapper} onPress={handleSplashTap}>
+          <SplashScreen />
+          <Text style={styles.tapCounter}>
+            Tap {5 - tapCount} more time{5 - tapCount !== 1 ? 's' : ''} to close
+          </Text>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -158,48 +258,111 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
-    backgroundColor: COLORS.dark,
-    padding: 24,
-    paddingTop: 48,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    backgroundColor: '#1F2937',
+    padding: 20,
+    paddingTop: 50,
+    borderBottomWidth: 3,
+    borderBottomColor: '#10B981',
   },
-  developerBadge: {
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.danger,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    alignSelf: 'flex-start',
+    gap: 12,
+    marginBottom: 12,
   },
-  developerText: {
-    color: COLORS.white,
-    fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 4,
+  avatarContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#374151',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#10B981',
+    flexShrink: 0,
   },
-  name: {
-    fontSize: 24,
+  headerInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  developerName: {
+    fontSize: 26,
     fontWeight: 'bold',
-    color: COLORS.white,
-    marginTop: 8,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
-  role: {
-    fontSize: 14,
-    color: COLORS.lightGray,
+  badgeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 4,
+  },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#064E3B',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  roleText: {
+    color: '#10B981',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  accessBadge: {
+    backgroundColor: '#1E3A8A',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  accessText: {
+    color: '#60A5FA',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  subtitle: {
+    fontSize: 13,
+    color: '#9CA3AF',
     marginTop: 2,
   },
   headerActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  playButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#064E3B',
+    borderRadius: 10,
   },
   refreshButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#312E81',
+    borderRadius: 10,
   },
   logoutButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#7F1D1D',
+    borderRadius: 10,
   },
   content: {
     flex: 1,
@@ -286,6 +449,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textLight,
     marginTop: 12,
+  },
+  splashModalWrapper: {
+    flex: 1,
+  },
+  tapCounter: {
+    position: 'absolute',
+    bottom: 50,
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '600',
+    alignSelf: 'center',
   },
 });
 

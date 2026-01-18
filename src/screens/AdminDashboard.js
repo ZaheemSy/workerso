@@ -16,7 +16,6 @@ import {
   LogIn as ClockInIcon,
   LogOut as ClockOutIcon,
   UserCircle,
-  Play,
   Activity,
   Sparkles,
   Heart,
@@ -32,6 +31,10 @@ import LottieView from 'lottie-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
+
+// ⚙️ FADE OPACITY SETTINGS - Adjust these values to change number visibility
+const NUMBER_FADE_OPACITY = 0.2; // Main number opacity (0.0 to 1.0) - Lower = more faded
+const OPTIONAL_FADE_OPACITY = 0.2; // "OPT" label opacity (0.0 to 1.0) - Lower = more faded
 
 const AdminDashboard = ({ navigation }) => {
   const { session, logout } = useAuth();
@@ -162,12 +165,25 @@ const AdminDashboard = ({ navigation }) => {
 
   const menuItems = [
     {
+      animation: require('../assets/json/Designations.json'),
+      title: 'Designations',
+      subtitle: 'Role management',
+      icon: '🎯',
+      color: '#06B6D4',
+      bgColor: '#ECFEFF',
+      number: '1',
+      numberColor: '#67E8F9',
+      onPress: () => navigation.navigate('Designations'),
+    },
+    {
       animation: require('../assets/json/Workers.json'),
       title: 'Employees',
       subtitle: 'Manage your team',
       icon: '👥',
       color: '#6366F1',
       bgColor: '#EEF2FF',
+      number: '2',
+      numberColor: '#A5B4FC',
       onPress: () => navigation.navigate('Employees'),
     },
     {
@@ -178,16 +194,10 @@ const AdminDashboard = ({ navigation }) => {
       color: '#EC4899',
       bgColor: '#FDF2F8',
       scale: 1.5,
+      number: '3',
+      numberColor: '#F9A8D4',
+      optional: true,
       onPress: () => navigation.navigate('WorkerGroupsList'),
-    },
-    {
-      animation: require('../assets/json/Designations.json'),
-      title: 'Designations',
-      subtitle: 'Role management',
-      icon: '🎯',
-      color: '#06B6D4',
-      bgColor: '#ECFEFF',
-      onPress: () => navigation.navigate('Designations'),
     },
     {
       animation: require('../assets/json/ID_Card.json'),
@@ -197,6 +207,8 @@ const AdminDashboard = ({ navigation }) => {
       color: '#F59E0B',
       bgColor: '#FEF3C7',
       scale: 1.2,
+      number: '4',
+      numberColor: '#FCD34D',
       onPress: () => navigation.navigate('Clients'),
     },
     {
@@ -207,6 +219,8 @@ const AdminDashboard = ({ navigation }) => {
       color: '#10B981',
       bgColor: '#ECFDF5',
       scale: 1.5,
+      number: '5',
+      numberColor: '#6EE7B7',
       onPress: () => navigation.navigate('ProjectList'),
     },
   ];
@@ -367,6 +381,25 @@ const AdminDashboard = ({ navigation }) => {
                 onPress={item.onPress}
                 activeOpacity={0.7}
               >
+                {item.number && (
+                  <View style={styles.numberContainer}>
+                    <Text
+                      style={[styles.numberText, { color: item.numberColor }]}
+                    >
+                      {item.number}
+                    </Text>
+                    {item.optional && (
+                      <Text
+                        style={[
+                          styles.optionalText,
+                          { color: item.numberColor },
+                        ]}
+                      >
+                        OPT
+                      </Text>
+                    )}
+                  </View>
+                )}
                 <View
                   style={[
                     styles.managementIconBox,
@@ -615,12 +648,14 @@ const styles = StyleSheet.create({
   sectionCount: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#FFFFFF',
-    backgroundColor: '#6366F1',
+    color: '#6366F1',
+    backgroundColor: 'transparent',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#6366F1',
+    opacity: 0.4,
   },
   quickGrid: {
     flexDirection: 'row',
@@ -681,6 +716,28 @@ const styles = StyleSheet.create({
     elevation: 4,
     borderWidth: 1,
     borderColor: '#F3F4F6',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  numberContainer: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    alignItems: 'center',
+  },
+  numberText: {
+    fontSize: 52,
+    fontWeight: '900',
+    opacity: NUMBER_FADE_OPACITY,
+    lineHeight: 52,
+    letterSpacing: -2,
+  },
+  optionalText: {
+    fontSize: 9,
+    fontWeight: '800',
+    opacity: OPTIONAL_FADE_OPACITY,
+    marginTop: -8,
+    letterSpacing: 0.5,
   },
   managementIconBox: {
     width: 76,

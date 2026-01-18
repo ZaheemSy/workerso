@@ -113,6 +113,30 @@ export const authenticateUser = async (username, password) => {
   return users.find(user => user.username === username && user.password === password);
 };
 
+// Initialize Developer User
+export const initializeDeveloperUser = async () => {
+  const users = await getUsers();
+  const developerExists = users.find(user => user.username === 'Zaheem' && user.role === 'developer');
+
+  if (!developerExists) {
+    const developerUser = {
+      userId: generateId('user'),
+      username: 'Zaheem',
+      password: '407033',
+      name: 'Zaheem',
+      role: 'developer',
+      designation: 'App Developer',
+      orgId: null,
+      createdAt: new Date().toISOString(),
+    };
+    users.push(developerUser);
+    await setItem(STORAGE_KEYS.USERS, users);
+    console.log('Developer user initialized');
+    return developerUser;
+  }
+  return developerExists;
+};
+
 // Session Operations
 export const saveSession = async (sessionData) => {
   return await setItem(STORAGE_KEYS.SESSION, sessionData);
@@ -171,6 +195,10 @@ export const createProject = async (projectData) => {
   projects.push(newProject);
   await setItem(STORAGE_KEYS.PROJECTS, projects);
   return newProject;
+};
+
+export const getProjects = async () => {
+  return (await getItem(STORAGE_KEYS.PROJECTS)) || [];
 };
 
 export const getProjectsByOrg = async (orgId) => {
