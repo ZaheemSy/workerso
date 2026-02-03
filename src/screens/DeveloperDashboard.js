@@ -32,7 +32,7 @@ import {
 } from '../services/storageService';
 import SplashScreen from './SplashScreen';
 
-const DeveloperDashboard = () => {
+const DeveloperDashboard = ({ navigation }) => {
   const { logout } = useAuth();
   const [stats, setStats] = useState({
     totalOrgs: 0,
@@ -206,16 +206,36 @@ const DeveloperDashboard = () => {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Organizations</Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Organizations</Text>
+          {organizations.length > 0 && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Organizations')}
+              style={styles.viewAllButton}
+            >
+              <Text style={styles.viewAllText}>View All</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {organizations.length === 0 ? (
-          <View style={styles.emptyState}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Organizations')}
+            style={styles.emptyState}
+            activeOpacity={0.7}
+          >
             <Building2 color={COLORS.gray} size={48} />
             <Text style={styles.emptyText}>No organizations created yet</Text>
-          </View>
+            <Text style={styles.emptySubtext}>Tap to view organizations</Text>
+          </TouchableOpacity>
         ) : (
-          organizations.map(org => (
-            <View key={org.orgId} style={styles.orgCard}>
+          organizations.slice(0, 3).map(org => (
+            <TouchableOpacity
+              key={org.orgId}
+              style={styles.orgCard}
+              onPress={() => navigation.navigate('OrganizationDetail', { organization: org, orgId: org.orgId })}
+              activeOpacity={0.7}
+            >
               <View style={styles.orgIcon}>
                 <Building2 color={COLORS.primary} size={24} />
               </View>
@@ -226,7 +246,7 @@ const DeveloperDashboard = () => {
                   Created: {new Date(org.createdAt).toLocaleDateString()}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
@@ -368,12 +388,28 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 24,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    marginTop: 8,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.text,
-    marginBottom: 16,
-    marginTop: 8,
+  },
+  viewAllButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 8,
+  },
+  viewAllText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6366F1',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -449,6 +485,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textLight,
     marginTop: 12,
+  },
+  emptySubtext: {
+    fontSize: 12,
+    color: COLORS.gray,
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   splashModalWrapper: {
     flex: 1,

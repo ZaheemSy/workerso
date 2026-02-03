@@ -34,18 +34,18 @@ const SplashScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF9F6', // Off-white color
+    backgroundColor: '#e9eddfff', // Off-white color
     justifyContent: 'center',
     alignItems: 'center',
   },
   animation: {
-    width: 220,
-    height: 220,
+    width: 200,
+    height: 200,
   },
   logo: {
     width: 200,
     height: 80,
-    marginTop: 20,
+    marginTop: 10,
   },
 });
 

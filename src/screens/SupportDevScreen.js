@@ -238,7 +238,7 @@ const SupportDevScreen = ({ navigation }) => {
         {/* Tip Options Title */}
         <Text style={styles.sectionTitle}>Choose Your Support Amount</Text>
         <Text style={styles.sectionSubtitle}>
-          One-time contribution via Google Play
+          Temporarily Disabled for now{' '}
         </Text>
 
         {/* Tip Options Grid */}
@@ -315,9 +315,9 @@ const SupportDevScreen = ({ navigation }) => {
         <View style={styles.devNote}>
           <Text style={styles.devNoteTitle}>🔧 Developer Note</Text>
           <Text style={styles.devNoteText}>
-            Ready for Phase 1 Integration:{'\n'}• Product IDs configured: tip_10
-            through tip_2000{'\n'}• Consumable purchase flow prepared{'\n'}•
-            UPI/Google Pay compatible{'\n'}• Add BillingManager class in Phase 1
+            More updates to come:{'\n'}• Communication between Super Admin and
+            Admins{'\n'}• And between Super Admin and Employees{'\n'}•
+            Communication between Admin and Employees{'\n'}• And more!
           </Text>
         </View>
 

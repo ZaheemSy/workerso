@@ -67,6 +67,10 @@ import ProjectSelectionScreen from './src/screens/ProjectSelectionScreen';
 import ReportOptionsScreen from './src/screens/ReportOptionsScreen';
 import ReportPreviewScreen from './src/screens/ReportPreviewScreen';
 
+// Organization Screens (Developer)
+import OrganizationsScreen from './src/screens/OrganizationsScreen';
+import OrganizationDetailScreen from './src/screens/OrganizationDetailScreen';
+
 const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
@@ -96,6 +100,8 @@ function AppNavigator() {
           {session.role === ROLES.DEVELOPER && (
             <>
               <Stack.Screen name="DeveloperDashboard" component={DeveloperDashboard} />
+              <Stack.Screen name="Organizations" component={OrganizationsScreen} />
+              <Stack.Screen name="OrganizationDetail" component={OrganizationDetailScreen} />
               <Stack.Screen name="OrganizationProfile" component={OrganizationProfileScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
             </>
