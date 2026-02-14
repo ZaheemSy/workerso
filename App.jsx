@@ -66,6 +66,14 @@ import EmployeeSelectionScreen from './src/screens/EmployeeSelectionScreen';
 import ProjectSelectionScreen from './src/screens/ProjectSelectionScreen';
 import ReportOptionsScreen from './src/screens/ReportOptionsScreen';
 import ReportPreviewScreen from './src/screens/ReportPreviewScreen';
+import QuickPageScreen from './src/screens/QuickPageScreen';
+import DesignationPoolScreen from './src/screens/DesignationPoolScreen';
+import EmployeePoolScreen from './src/screens/EmployeePoolScreen';
+import ProjectPoolScreen from './src/screens/ProjectPoolScreen';
+import QuickProjectDetailsScreen from './src/screens/QuickProjectDetailsScreen';
+import EmployeeProjectDetailsScreen from './src/screens/EmployeeProjectDetailsScreen';
+import EmployeeQuickDetailsScreen from './src/screens/EmployeeQuickDetailsScreen';
+import QuickReportScreen from './src/screens/QuickReportScreen';
 
 // Organization Screens (Developer)
 import OrganizationsScreen from './src/screens/OrganizationsScreen';
@@ -169,6 +177,14 @@ function AppNavigator() {
 
               {/* Settings */}
               <Stack.Screen name="Settings" component={SettingsScreen} />
+              <Stack.Screen name="QuickPage" component={QuickPageScreen} />
+              <Stack.Screen name="DesignationPool" component={DesignationPoolScreen} />
+              <Stack.Screen name="EmployeePool" component={EmployeePoolScreen} />
+              <Stack.Screen name="ProjectPool" component={ProjectPoolScreen} />
+              <Stack.Screen name="QuickProjectDetails" component={QuickProjectDetailsScreen} />
+              <Stack.Screen name="EmployeeProjectDetails" component={EmployeeProjectDetailsScreen} />
+              <Stack.Screen name="EmployeeQuickDetails" component={EmployeeQuickDetailsScreen} />
+              <Stack.Screen name="QuickReport" component={QuickReportScreen} />
             </>
           )}
 
@@ -218,6 +234,14 @@ function AppNavigator() {
               {/* Profile & Settings */}
               <Stack.Screen name="OrganizationProfile" component={OrganizationProfileScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
+              <Stack.Screen name="QuickPage" component={QuickPageScreen} />
+              <Stack.Screen name="DesignationPool" component={DesignationPoolScreen} />
+              <Stack.Screen name="EmployeePool" component={EmployeePoolScreen} />
+              <Stack.Screen name="ProjectPool" component={ProjectPoolScreen} />
+              <Stack.Screen name="QuickProjectDetails" component={QuickProjectDetailsScreen} />
+              <Stack.Screen name="EmployeeProjectDetails" component={EmployeeProjectDetailsScreen} />
+              <Stack.Screen name="EmployeeQuickDetails" component={EmployeeQuickDetailsScreen} />
+              <Stack.Screen name="QuickReport" component={QuickReportScreen} />
             </>
           )}
         </>

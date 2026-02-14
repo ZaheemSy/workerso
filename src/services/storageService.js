@@ -88,6 +88,10 @@ export const STORAGE_KEYS = {
   DEVLOGS: '@workerso_devlogs',
   DESIGNATIONS: '@workerso_designations',
   CLIENTS: '@workerso_clients',
+  QUICK_DESIGNATIONS: '@workerso_quick_designations',
+  QUICK_EMPLOYEES: '@workerso_quick_employees',
+  QUICK_PROJECTS: '@workerso_quick_projects',
+  QUICK_WORKLOGS: '@workerso_quick_worklogs',
 };
 
 // Helper function to generate unique IDs
@@ -140,6 +144,35 @@ export const getOrganizationById = async (orgId) => {
   return orgs.find(org => org.orgId === orgId);
 };
 
+export const upsertOrganization = async (orgData) => {
+  if (!orgData?.orgId) {
+    throw new Error('orgId is required to upsert organization');
+  }
+
+  const orgs = (await getItem(STORAGE_KEYS.ORGS)) || [];
+  const index = orgs.findIndex(org => org.orgId === orgData.orgId);
+  const timestamp = new Date().toISOString();
+
+  if (index === -1) {
+    const newOrg = {
+      ...orgData,
+      createdAt: orgData.createdAt || timestamp,
+      updatedAt: timestamp,
+    };
+    orgs.push(newOrg);
+    await setItem(STORAGE_KEYS.ORGS, orgs);
+    return newOrg;
+  }
+
+  orgs[index] = {
+    ...orgs[index],
+    ...orgData,
+    updatedAt: timestamp,
+  };
+  await setItem(STORAGE_KEYS.ORGS, orgs);
+  return orgs[index];
+};
+
 // User Operations
 export const createUser = async (userData) => {
   const users = (await getItem(STORAGE_KEYS.USERS)) || [];
@@ -171,6 +204,40 @@ export const getUsersByAdmin = async (adminId) => {
 export const getUserById = async (userId) => {
   const users = await getUsers();
   return users.find(user => user.userId === userId);
+};
+
+export const getUserByEmail = async (email) => {
+  const users = await getUsers();
+  return users.find(user => user.email?.toLowerCase() === email?.toLowerCase());
+};
+
+export const upsertUser = async (userData) => {
+  if (!userData?.userId) {
+    throw new Error('userId is required to upsert user');
+  }
+
+  const users = (await getItem(STORAGE_KEYS.USERS)) || [];
+  const index = users.findIndex(user => user.userId === userData.userId);
+  const timestamp = new Date().toISOString();
+
+  if (index === -1) {
+    const newUser = {
+      ...userData,
+      createdAt: userData.createdAt || timestamp,
+      updatedAt: timestamp,
+    };
+    users.push(newUser);
+    await setItem(STORAGE_KEYS.USERS, users);
+    return newUser;
+  }
+
+  users[index] = {
+    ...users[index],
+    ...userData,
+    updatedAt: timestamp,
+  };
+  await setItem(STORAGE_KEYS.USERS, users);
+  return users[index];
 };
 
 export const updateUser = async (userId, updates) => {
@@ -496,4 +563,187 @@ export const clearAllData = async () => {
     console.error('Error clearing data:', error);
     return false;
   }
+};
+
+// ============================================
+// QUICK FEATURE SERVICES
+// ============================================
+
+const DEFAULT_QUICK_DESIGNATIONS = ['Carpenter', 'Painter', 'Designer'];
+
+export const ensureQuickDefaultDesignations = async (orgId, userId = null) => {
+  const allDesignations = (await getItem(STORAGE_KEYS.QUICK_DESIGNATIONS)) || [];
+  const orgDesignations = allDesignations.filter(item => item.orgId === orgId);
+
+  if (orgDesignations.length > 0) {
+    return orgDesignations;
+  }
+
+  const now = new Date().toISOString();
+  const seeded = DEFAULT_QUICK_DESIGNATIONS.map(name => ({
+    quickDesignationId: generateId('quick_designation'),
+    orgId,
+    name,
+    createdBy: userId,
+    createdAt: now,
+    updatedAt: now,
+  }));
+
+  await setItem(STORAGE_KEYS.QUICK_DESIGNATIONS, [...allDesignations, ...seeded]);
+  return seeded;
+};
+
+export const getQuickDesignationsByOrg = async orgId => {
+  const designations = (await getItem(STORAGE_KEYS.QUICK_DESIGNATIONS)) || [];
+  return designations.filter(item => item.orgId === orgId);
+};
+
+export const createQuickDesignation = async data => {
+  const designations = (await getItem(STORAGE_KEYS.QUICK_DESIGNATIONS)) || [];
+  const now = new Date().toISOString();
+  const newItem = {
+    quickDesignationId: generateId('quick_designation'),
+    ...data,
+    createdAt: now,
+    updatedAt: now,
+  };
+  designations.push(newItem);
+  await setItem(STORAGE_KEYS.QUICK_DESIGNATIONS, designations);
+  return newItem;
+};
+
+export const updateQuickDesignation = async (quickDesignationId, updates) => {
+  const designations = (await getItem(STORAGE_KEYS.QUICK_DESIGNATIONS)) || [];
+  const index = designations.findIndex(item => item.quickDesignationId === quickDesignationId);
+  if (index === -1) return null;
+  designations[index] = { ...designations[index], ...updates, updatedAt: new Date().toISOString() };
+  await setItem(STORAGE_KEYS.QUICK_DESIGNATIONS, designations);
+  return designations[index];
+};
+
+export const deleteQuickDesignation = async quickDesignationId => {
+  const designations = (await getItem(STORAGE_KEYS.QUICK_DESIGNATIONS)) || [];
+  await setItem(
+    STORAGE_KEYS.QUICK_DESIGNATIONS,
+    designations.filter(item => item.quickDesignationId !== quickDesignationId)
+  );
+  return true;
+};
+
+export const getQuickEmployeesByOrg = async orgId => {
+  const employees = (await getItem(STORAGE_KEYS.QUICK_EMPLOYEES)) || [];
+  return employees.filter(item => item.orgId === orgId);
+};
+
+export const createQuickEmployee = async data => {
+  const employees = (await getItem(STORAGE_KEYS.QUICK_EMPLOYEES)) || [];
+  const now = new Date().toISOString();
+  const newItem = {
+    quickEmployeeId: generateId('quick_employee'),
+    ...data,
+    createdAt: now,
+    updatedAt: now,
+  };
+  employees.push(newItem);
+  await setItem(STORAGE_KEYS.QUICK_EMPLOYEES, employees);
+  return newItem;
+};
+
+export const updateQuickEmployee = async (quickEmployeeId, updates) => {
+  const employees = (await getItem(STORAGE_KEYS.QUICK_EMPLOYEES)) || [];
+  const index = employees.findIndex(item => item.quickEmployeeId === quickEmployeeId);
+  if (index === -1) return null;
+  employees[index] = { ...employees[index], ...updates, updatedAt: new Date().toISOString() };
+  await setItem(STORAGE_KEYS.QUICK_EMPLOYEES, employees);
+  return employees[index];
+};
+
+export const deleteQuickEmployee = async quickEmployeeId => {
+  const employees = (await getItem(STORAGE_KEYS.QUICK_EMPLOYEES)) || [];
+  await setItem(
+    STORAGE_KEYS.QUICK_EMPLOYEES,
+    employees.filter(item => item.quickEmployeeId !== quickEmployeeId)
+  );
+  return true;
+};
+
+export const getQuickProjectsByOrg = async orgId => {
+  const projects = (await getItem(STORAGE_KEYS.QUICK_PROJECTS)) || [];
+  return projects.filter(item => item.orgId === orgId);
+};
+
+export const getQuickProjectById = async quickProjectId => {
+  const projects = (await getItem(STORAGE_KEYS.QUICK_PROJECTS)) || [];
+  return projects.find(item => item.quickProjectId === quickProjectId) || null;
+};
+
+export const createQuickProject = async data => {
+  const projects = (await getItem(STORAGE_KEYS.QUICK_PROJECTS)) || [];
+  const now = new Date().toISOString();
+  const newItem = {
+    quickProjectId: generateId('quick_project'),
+    employeeIds: data.employeeIds || [],
+    ...data,
+    createdAt: now,
+    updatedAt: now,
+  };
+  projects.push(newItem);
+  await setItem(STORAGE_KEYS.QUICK_PROJECTS, projects);
+  return newItem;
+};
+
+export const updateQuickProject = async (quickProjectId, updates) => {
+  const projects = (await getItem(STORAGE_KEYS.QUICK_PROJECTS)) || [];
+  const index = projects.findIndex(item => item.quickProjectId === quickProjectId);
+  if (index === -1) return null;
+  projects[index] = { ...projects[index], ...updates, updatedAt: new Date().toISOString() };
+  await setItem(STORAGE_KEYS.QUICK_PROJECTS, projects);
+  return projects[index];
+};
+
+export const addEmployeeToQuickProject = async (quickProjectId, quickEmployeeId) => {
+  const project = await getQuickProjectById(quickProjectId);
+  if (!project) return null;
+  const employeeIds = Array.from(new Set([...(project.employeeIds || []), quickEmployeeId]));
+  return updateQuickProject(quickProjectId, { employeeIds });
+};
+
+export const removeEmployeeFromQuickProject = async (quickProjectId, quickEmployeeId) => {
+  const project = await getQuickProjectById(quickProjectId);
+  if (!project) return null;
+  const employeeIds = (project.employeeIds || []).filter(id => id !== quickEmployeeId);
+  return updateQuickProject(quickProjectId, { employeeIds });
+};
+
+export const createQuickWorkLog = async data => {
+  const logs = (await getItem(STORAGE_KEYS.QUICK_WORKLOGS)) || [];
+  const now = new Date().toISOString();
+  const newItem = {
+    quickWorkLogId: generateId('quick_worklog'),
+    ...data,
+    createdAt: now,
+    updatedAt: now,
+  };
+  logs.push(newItem);
+  await setItem(STORAGE_KEYS.QUICK_WORKLOGS, logs);
+  return newItem;
+};
+
+export const getQuickWorkLogsByEmployee = async (orgId, quickEmployeeId) => {
+  const logs = (await getItem(STORAGE_KEYS.QUICK_WORKLOGS)) || [];
+  return logs.filter(item => item.orgId === orgId && item.quickEmployeeId === quickEmployeeId);
+};
+
+export const updateQuickWorkLog = async (quickWorkLogId, updates) => {
+  const logs = (await getItem(STORAGE_KEYS.QUICK_WORKLOGS)) || [];
+  const index = logs.findIndex(item => item.quickWorkLogId === quickWorkLogId);
+  if (index === -1) return null;
+  logs[index] = { ...logs[index], ...updates, updatedAt: new Date().toISOString() };
+  await setItem(STORAGE_KEYS.QUICK_WORKLOGS, logs);
+  return logs[index];
+};
+
+export const getQuickWorkLogsByOrg = async orgId => {
+  const logs = (await getItem(STORAGE_KEYS.QUICK_WORKLOGS)) || [];
+  return logs.filter(item => item.orgId === orgId);
 };

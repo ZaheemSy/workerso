@@ -223,6 +223,18 @@ const AdminDashboard = ({ navigation }) => {
       numberColor: '#6EE7B7',
       onPress: () => navigation.navigate('ProjectList'),
     },
+    {
+      animation: require('../assets/json/Projects.json'),
+      title: 'Quick',
+      subtitle: 'Fast pool setup',
+      icon: '⚡',
+      color: '#7C3AED',
+      bgColor: '#F5F3FF',
+      scale: 1.5,
+      number: '6',
+      numberColor: '#C4B5FD',
+      onPress: () => navigation.navigate('QuickPage'),
+    },
   ];
 
   return (

@@ -12,9 +12,11 @@ import {
   Modal,
 } from 'react-native';
 import { Building2, User, Mail, Phone, Lock, UserPlus, Eye, EyeOff, Award, ChevronDown } from 'lucide-react-native';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
-import { createOrganization, createUser } from '../services/storageService';
+import { createOrganization, upsertUser } from '../services/storageService';
 
 const SignupScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
@@ -120,14 +122,36 @@ const SignupScreen = ({ navigation }) => {
         ? customDesignation.trim()
         : selectedDesignation;
 
-      // Create super admin user
-      const user = await createUser({
+      const email = formData.email.trim().toLowerCase();
+      const username = formData.username.trim().toLowerCase();
+
+      // Create Firebase Auth account first so uid becomes the source-of-truth user id
+      const userCredential = await auth().createUserWithEmailAndPassword(email, formData.password);
+      const uid = userCredential.user.uid;
+
+      // Minimal cloud profile for account restore after reinstall
+      await firestore().collection('users').doc(uid).set({
+        userId: uid,
+        uid,
         orgId: org.orgId,
         role: ROLES.SUPER_ADMIN,
         name: formData.superAdminName.trim(),
-        email: formData.email.trim().toLowerCase(),
+        email,
+        designation: finalDesignation,
+        username,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Keep local app data flow unchanged
+      const user = await upsertUser({
+        userId: uid,
+        orgId: org.orgId,
+        role: ROLES.SUPER_ADMIN,
+        name: formData.superAdminName.trim(),
+        email,
         phone: formData.phone.trim(),
-        username: formData.username.trim().toLowerCase(),
+        username,
         password: formData.password,
         designation: finalDesignation,
         extraDetails: {},
@@ -136,6 +160,9 @@ const SignupScreen = ({ navigation }) => {
       if (!user) {
         throw new Error('Failed to create super admin');
       }
+
+      // Keep existing UX: after signup user returns to login screen
+      await auth().signOut();
 
       setLoading(false);
       Alert.alert(
@@ -303,6 +330,10 @@ const SignupScreen = ({ navigation }) => {
               Already have an account? <Text style={styles.loginTextBold}>Login</Text>
             </Text>
           </TouchableOpacity>
+
+          <Text style={styles.noticeText}>
+            Note: Uninstalling the app clears local project/work data on this device. Your login account remains available.
+          </Text>
         </View>
       </ScrollView>
 
@@ -519,6 +550,13 @@ const styles = StyleSheet.create({
   loginTextBold: {
     color: COLORS.primary,
     fontWeight: '600',
+  },
+  noticeText: {
+    marginTop: 16,
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.textLight,
+    textAlign: 'center',
   },
   inputText: {
     flex: 1,

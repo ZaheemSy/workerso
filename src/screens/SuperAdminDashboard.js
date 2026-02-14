@@ -209,6 +209,17 @@ const SuperAdminDashboard = ({ navigation }) => {
 
         <Text style={styles.sectionTitle}>Administration</Text>
 
+        <TouchableOpacity
+          style={styles.adminWorkersCard}
+          onPress={() => navigation.navigate('QuickPage')}
+          activeOpacity={0.7}
+        >
+          <Play color="#7C3AED" size={22} />
+          <Text style={styles.adminWorkersTitle}>Quick</Text>
+          <Text style={styles.adminWorkersSeparator}>•</Text>
+          <Text style={styles.adminWorkersSubtitle}>Fast pool setup</Text>
+        </TouchableOpacity>
+
         <View style={styles.grid}>
           {menuItems.map((item, index) => (
             <TouchableOpacity

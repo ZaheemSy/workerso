@@ -23,7 +23,7 @@ const LoginScreen = ({ navigation }) => {
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter username and password');
+      Alert.alert('Error', 'Please enter username/email and password');
       return;
     }
 
@@ -55,7 +55,7 @@ const LoginScreen = ({ navigation }) => {
             <User color={COLORS.gray} size={20} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Username"
+              placeholder="Username or Email"
               placeholderTextColor={COLORS.gray}
               value={username}
               onChangeText={setUsername}
@@ -103,6 +103,10 @@ const LoginScreen = ({ navigation }) => {
               Don't have an organization? <Text style={styles.signupTextBold}>Sign Up</Text>
             </Text>
           </TouchableOpacity>
+
+          <Text style={styles.noticeText}>
+            Note: Uninstalling the app clears local project/work data on this device. Your login account remains available.
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -187,6 +191,13 @@ const styles = StyleSheet.create({
   signupTextBold: {
     color: COLORS.primary,
     fontWeight: '600',
+  },
+  noticeText: {
+    marginTop: 16,
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.textLight,
+    textAlign: 'center',
   },
 });
 
