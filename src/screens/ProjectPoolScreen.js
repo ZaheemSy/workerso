@@ -9,13 +9,19 @@ import {
   Alert,
   FlatList,
 } from 'react-native';
-import { ArrowLeft, Plus, Briefcase, CheckSquare, Square, ChevronDown, Search } from 'lucide-react-native';
+import { ArrowLeft, Plus, Briefcase, CheckSquare, Square, ChevronDown, Search, Pencil, Trash2 } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
 import {
+  ensureQuickDefaultDesignations,
+  getQuickDesignationsByOrg,
   getQuickEmployeesByOrg,
   getQuickProjectsByOrg,
   createQuickProject,
+  updateQuickProject,
+  deleteQuickProject,
+  createQuickEmployee,
+  createQuickDesignation,
 } from '../services/storageService';
 
 const ProjectPoolScreen = ({ navigation }) => {
@@ -24,9 +30,19 @@ const ProjectPoolScreen = ({ navigation }) => {
   const [projects, setProjects] = useState([]);
   const [showEditor, setShowEditor] = useState(false);
   const [showEmployeePicker, setShowEmployeePicker] = useState(false);
+  const [showDesignationPicker, setShowDesignationPicker] = useState(false);
+  const [showProjectRenameModal, setShowProjectRenameModal] = useState(false);
   const [projectName, setProjectName] = useState('');
+  const [renameProjectName, setRenameProjectName] = useState('');
+  const [editingProjectId, setEditingProjectId] = useState(null);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [designations, setDesignations] = useState([]);
+  const [employeeMode, setEmployeeMode] = useState('pool');
+  const [newEmployeeName, setNewEmployeeName] = useState('');
+  const [designationMode, setDesignationMode] = useState('pool');
+  const [selectedDesignationId, setSelectedDesignationId] = useState('');
+  const [newDesignationName, setNewDesignationName] = useState('');
 
   const employeeMap = useMemo(() => {
     const map = {};
@@ -36,14 +52,25 @@ const ProjectPoolScreen = ({ navigation }) => {
     return map;
   }, [employees]);
 
+  const designationMap = useMemo(() => {
+    const map = {};
+    designations.forEach(item => {
+      map[item.quickDesignationId] = item.name;
+    });
+    return map;
+  }, [designations]);
+
   const loadData = useCallback(async () => {
-    const [employeeList, projectList] = await Promise.all([
+    await ensureQuickDefaultDesignations(session.orgId, session.userId);
+    const [employeeList, projectList, designationList] = await Promise.all([
       getQuickEmployeesByOrg(session.orgId),
       getQuickProjectsByOrg(session.orgId),
+      getQuickDesignationsByOrg(session.orgId),
     ]);
     setEmployees(employeeList.sort((a, b) => a.name.localeCompare(b.name)));
     setProjects(projectList.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-  }, [session.orgId]);
+    setDesignations(designationList.sort((a, b) => a.name.localeCompare(b.name)));
+  }, [session.orgId, session.userId]);
 
   useEffect(() => {
     loadData();
@@ -57,42 +84,162 @@ const ProjectPoolScreen = ({ navigation }) => {
     );
   };
 
+  const resetEditor = () => {
+    setProjectName('');
+    setSelectedEmployeeIds([]);
+    setEmployeeMode('pool');
+    setNewEmployeeName('');
+    setDesignationMode('pool');
+    setSelectedDesignationId('');
+    setNewDesignationName('');
+  };
+
+  const openCreateModal = () => {
+    resetEditor();
+    setShowEditor(true);
+  };
+
+  const closeCreateModal = () => {
+    setShowEditor(false);
+    resetEditor();
+  };
+
+  const resolveDesignationId = async () => {
+    if (designationMode === 'pool') {
+      if (!selectedDesignationId) return null;
+      return selectedDesignationId;
+    }
+
+    const trimmed = newDesignationName.trim();
+    if (!trimmed) return null;
+
+    const existing = designations.find(
+      item => item.name?.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existing) return existing.quickDesignationId;
+
+    const created = await createQuickDesignation({
+      orgId: session.orgId,
+      name: trimmed,
+      createdBy: session.userId,
+    });
+    return created.quickDesignationId;
+  };
+
+  const saveProjectWithEmployeeIds = async employeeIds => {
+    await createQuickProject({
+      orgId: session.orgId,
+      name: projectName.trim(),
+      employeeIds,
+      createdBy: session.userId,
+    });
+    closeCreateModal();
+    loadData();
+  };
+
   const saveProject = async () => {
     if (!projectName.trim()) {
       Alert.alert('Validation', 'Please enter project name');
       return;
     }
 
-    if (selectedEmployeeIds.length === 0) {
-      Alert.alert('Validation', 'At least one employee is required');
+    if (employeeMode === 'pool') {
+      if (selectedEmployeeIds.length === 0) {
+        Alert.alert('Validation', 'At least one employee is required');
+        return;
+      }
+      await saveProjectWithEmployeeIds(selectedEmployeeIds);
       return;
     }
 
-    await createQuickProject({
+    const employeeName = newEmployeeName.trim();
+    if (!employeeName) {
+      Alert.alert('Validation', 'Please enter employee name');
+      return;
+    }
+
+    const designationId = await resolveDesignationId();
+    if (!designationId) {
+      Alert.alert('Validation', 'Please add or select designation');
+      return;
+    }
+
+    const existingEmployee = employees.find(
+      item => item.name?.trim().toLowerCase() === employeeName.toLowerCase()
+    );
+
+    if (existingEmployee) {
+      Alert.alert(
+        'Employee Already Exists',
+        `"${existingEmployee.name}" is already in employee pool. Use existing employee or rename.`,
+        [
+          { text: 'Rename', style: 'cancel' },
+          {
+            text: 'Use Existing',
+            onPress: async () => {
+              await saveProjectWithEmployeeIds([existingEmployee.quickEmployeeId]);
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    const createdEmployee = await createQuickEmployee({
       orgId: session.orgId,
-      name: projectName.trim(),
-      employeeIds: selectedEmployeeIds,
+      name: employeeName,
+      designationId,
       createdBy: session.userId,
     });
 
-    setProjectName('');
-    setSelectedEmployeeIds([]);
-    setShowEditor(false);
-    loadData();
+    await saveProjectWithEmployeeIds([createdEmployee.quickEmployeeId]);
   };
 
-  const renderProject = ({ item }) => (
+  const renderProject = ({ item, index }) => (
     <TouchableOpacity
       style={styles.projectCard}
       onPress={() => navigation.navigate('QuickProjectDetails', { quickProjectId: item.quickProjectId })}
       activeOpacity={0.75}
     >
+      <Text style={[styles.cardWatermark, index % 2 === 0 ? styles.watermarkBlue : styles.watermarkGreen]}>
+        PROJECT
+      </Text>
       <View style={styles.projectIcon}>
         <Briefcase color={COLORS.warning} size={16} />
       </View>
       <View style={styles.projectInfo}>
         <Text style={styles.projectName}>{item.name}</Text>
         <Text style={styles.projectMeta}>{(item.employeeIds || []).length} employee(s)</Text>
+      </View>
+      <View style={styles.projectActions}>
+        <TouchableOpacity
+          style={styles.actionIconBtn}
+          onPress={() => {
+            setEditingProjectId(item.quickProjectId);
+            setRenameProjectName(item.name || '');
+            setShowProjectRenameModal(true);
+          }}
+        >
+          <Pencil color={COLORS.primary} size={16} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionIconBtn}
+          onPress={() => {
+            Alert.alert('Confirm Delete', 'Are you sure you want to delete this project?', [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                  await deleteQuickProject(item.quickProjectId);
+                  loadData();
+                },
+              },
+            ]);
+          }}
+        >
+          <Trash2 color={COLORS.danger} size={16} />
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -109,7 +256,7 @@ const ProjectPoolScreen = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
           <ArrowLeft color={COLORS.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Project Pool</Text>
+        <Text style={styles.headerTitle}>Quick Project</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -121,7 +268,7 @@ const ProjectPoolScreen = ({ navigation }) => {
           </Text>
         </View>
 
-        <TouchableOpacity style={styles.addButton} onPress={() => setShowEditor(true)}>
+        <TouchableOpacity style={styles.addButton} onPress={openCreateModal}>
           <Plus color={COLORS.white} size={16} />
           <Text style={styles.addButtonText}>Create Project</Text>
         </TouchableOpacity>
@@ -150,7 +297,7 @@ const ProjectPoolScreen = ({ navigation }) => {
         />
       </View>
 
-      <Modal transparent visible={showEditor} animationType="fade" onRequestClose={() => setShowEditor(false)}>
+      <Modal transparent visible={showEditor} animationType="fade" onRequestClose={closeCreateModal}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Create Project</Text>
@@ -162,17 +309,85 @@ const ProjectPoolScreen = ({ navigation }) => {
               onChangeText={setProjectName}
             />
 
-            <TouchableOpacity style={styles.selectBtn} onPress={() => setShowEmployeePicker(true)}>
-              <Text style={[styles.selectText, selectedEmployeeIds.length === 0 && styles.placeholder]}>
-                {selectedEmployeeIds.length > 0
-                  ? `${selectedEmployeeIds.length} employee(s) selected`
-                  : 'Select employee(s)'}
-              </Text>
-              <ChevronDown color={COLORS.gray} size={16} />
-            </TouchableOpacity>
+            <Text style={styles.sectionLabel}>Add Employees</Text>
+            <View style={styles.modeSwitch}>
+              <TouchableOpacity
+                style={[styles.modeButton, employeeMode === 'pool' && styles.modeButtonActive]}
+                onPress={() => setEmployeeMode('pool')}
+              >
+                <Text style={[styles.modeButtonText, employeeMode === 'pool' && styles.modeButtonTextActive]}>
+                  Employees from pool
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeButton, employeeMode === 'new' && styles.modeButtonActive]}
+                onPress={() => setEmployeeMode('new')}
+              >
+                <Text style={[styles.modeButtonText, employeeMode === 'new' && styles.modeButtonTextActive]}>
+                  New employee
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {employeeMode === 'pool' ? (
+              <TouchableOpacity style={styles.selectBtn} onPress={() => setShowEmployeePicker(true)}>
+                <Text style={[styles.selectText, selectedEmployeeIds.length === 0 && styles.placeholder]}>
+                  {selectedEmployeeIds.length > 0
+                    ? `${selectedEmployeeIds.length} employee(s) selected`
+                    : 'Select employee(s)'}
+                </Text>
+                <ChevronDown color={COLORS.gray} size={16} />
+              </TouchableOpacity>
+            ) : (
+              <View>
+                <TextInput
+                  style={[styles.input, styles.mt10]}
+                  placeholder="Employee name"
+                  placeholderTextColor={COLORS.gray}
+                  value={newEmployeeName}
+                  onChangeText={setNewEmployeeName}
+                />
+                <Text style={styles.sectionLabel}>Designation</Text>
+                <View style={styles.modeSwitch}>
+                  <TouchableOpacity
+                    style={[styles.modeButton, designationMode === 'pool' && styles.modeButtonActive]}
+                    onPress={() => setDesignationMode('pool')}
+                  >
+                    <Text style={[styles.modeButtonText, designationMode === 'pool' && styles.modeButtonTextActive]}>
+                      Select from pool
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modeButton, designationMode === 'new' && styles.modeButtonActive]}
+                    onPress={() => setDesignationMode('new')}
+                  >
+                    <Text style={[styles.modeButtonText, designationMode === 'new' && styles.modeButtonTextActive]}>
+                      Add directly
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {designationMode === 'pool' ? (
+                  <TouchableOpacity style={styles.selectBtn} onPress={() => setShowDesignationPicker(true)}>
+                    <Text style={[styles.selectText, !selectedDesignationId && styles.placeholder]}>
+                      {selectedDesignationId ? designationMap[selectedDesignationId] : 'Select designation'}
+                    </Text>
+                    <ChevronDown color={COLORS.gray} size={16} />
+                  </TouchableOpacity>
+                ) : (
+                  <TextInput
+                    style={[styles.input, styles.mt10]}
+                    placeholder="Designation name"
+                    placeholderTextColor={COLORS.gray}
+                    value={newDesignationName}
+                    onChangeText={setNewDesignationName}
+                  />
+                )}
+              </View>
+            )}
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowEditor(false)}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={closeCreateModal}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={saveProject}>
@@ -217,6 +432,92 @@ const ProjectPoolScreen = ({ navigation }) => {
             <TouchableOpacity style={styles.doneBtn} onPress={() => setShowEmployeePicker(false)}>
               <Text style={styles.doneBtnText}>Done</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={showDesignationPicker}
+        animationType="fade"
+        onRequestClose={() => setShowDesignationPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Select Designation</Text>
+            <FlatList
+              data={designations}
+              keyExtractor={item => item.quickDesignationId}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.employeeItem}
+                  onPress={() => {
+                    setSelectedDesignationId(item.quickDesignationId);
+                    setShowDesignationPicker(false);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.employeeText}>{item.name}</Text>
+                  {selectedDesignationId === item.quickDesignationId ? (
+                    <CheckSquare color={COLORS.primary} size={18} />
+                  ) : null}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={<Text style={styles.emptyText}>No designations available</Text>}
+            />
+            <TouchableOpacity style={styles.doneBtn} onPress={() => setShowDesignationPicker(false)}>
+              <Text style={styles.doneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={showProjectRenameModal}
+        animationType="fade"
+        onRequestClose={() => setShowProjectRenameModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Edit Project Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Project name"
+              placeholderTextColor={COLORS.gray}
+              value={renameProjectName}
+              onChangeText={setRenameProjectName}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowProjectRenameModal(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={() => {
+                  if (!renameProjectName.trim()) {
+                    Alert.alert('Validation', 'Please enter project name');
+                    return;
+                  }
+                  Alert.alert('Confirm Update', 'Are you sure you want to update project name?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Update',
+                      onPress: async () => {
+                        if (!editingProjectId) return;
+                        await updateQuickProject(editingProjectId, { name: renameProjectName.trim() });
+                        setShowProjectRenameModal(false);
+                        setEditingProjectId(null);
+                        setRenameProjectName('');
+                        loadData();
+                      },
+                    },
+                  ]);
+                }}
+              >
+                <Text style={styles.saveBtnText}>Update</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -289,6 +590,7 @@ const styles = StyleSheet.create({
   },
   listContent: { paddingBottom: 20 },
   projectCard: {
+    overflow: 'hidden',
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -315,6 +617,19 @@ const styles = StyleSheet.create({
   projectInfo: { flex: 1 },
   projectName: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
   projectMeta: { color: COLORS.textLight, fontSize: 12, marginTop: 2 },
+  projectActions: { flexDirection: 'row' },
+  actionIconBtn: { padding: 6 },
+  cardWatermark: {
+    position: 'absolute',
+    right: 10,
+    top: 8,
+    fontSize: 24,
+    fontWeight: '800',
+    opacity: 0.1,
+    letterSpacing: 1,
+  },
+  watermarkGreen: { color: '#10B981' },
+  watermarkBlue: { color: '#2563EB' },
   emptyText: { textAlign: 'center', marginTop: 24, color: COLORS.textLight },
   modalOverlay: {
     flex: 1,
@@ -332,6 +647,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 44,
     color: COLORS.text,
+  },
+  mt10: { marginTop: 10 },
+  sectionLabel: {
+    marginTop: 10,
+    marginBottom: 6,
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modeSwitch: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 2,
+  },
+  modeButton: {
+    flex: 1,
+    height: 38,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  modeButtonActive: {
+    borderColor: '#93C5FD',
+    backgroundColor: '#EFF6FF',
+  },
+  modeButtonText: {
+    color: COLORS.textLight,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modeButtonTextActive: {
+    color: '#1D4ED8',
   },
   selectBtn: {
     marginTop: 10,

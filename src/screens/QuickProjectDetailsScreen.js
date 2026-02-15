@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList, Alert, TextInput } from 'react-native';
-import { ArrowLeft, Plus, Users, Trash2, CheckSquare, Square, Search } from 'lucide-react-native';
+import { ArrowLeft, Plus, Users, Trash2, CheckSquare, Square, Search, Pencil } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -9,6 +9,8 @@ import {
   getQuickDesignationsByOrg,
   addEmployeeToQuickProject,
   removeEmployeeFromQuickProject,
+  updateQuickProject,
+  deleteQuickProject,
 } from '../services/storageService';
 
 const QuickProjectDetailsScreen = ({ navigation, route }) => {
@@ -21,6 +23,8 @@ const QuickProjectDetailsScreen = ({ navigation, route }) => {
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [pickerSearchQuery, setPickerSearchQuery] = useState('');
+  const [showProjectRenameModal, setShowProjectRenameModal] = useState(false);
+  const [renameProjectName, setRenameProjectName] = useState('');
 
   const employeeMap = useMemo(() => {
     const map = {};
@@ -114,8 +118,11 @@ const QuickProjectDetailsScreen = ({ navigation, route }) => {
     ]);
   };
 
-  const renderEmployee = ({ item }) => (
+  const renderEmployee = ({ item, index }) => (
     <View style={styles.employeeRow}>
+      <Text style={[styles.rowWatermark, index % 2 === 0 ? styles.watermarkGreen : styles.watermarkBlue]}>
+        EMP
+      </Text>
       <TouchableOpacity
         style={styles.employeeLeft}
         onPress={() =>
@@ -171,6 +178,38 @@ const QuickProjectDetailsScreen = ({ navigation, route }) => {
           <Text style={styles.projectMetaLine}>
             Assigned Employees: {(project.employeeIds || []).length}
           </Text>
+        </View>
+
+        <View style={styles.projectActionsRow}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => {
+              setRenameProjectName(project.name || '');
+              setShowProjectRenameModal(true);
+            }}
+          >
+            <Pencil color={COLORS.primary} size={16} />
+            <Text style={styles.secondaryButtonText}>Edit Project</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.deleteProjectButton}
+            onPress={() => {
+              Alert.alert('Confirm Delete', 'Are you sure you want to delete this project?', [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete',
+                  style: 'destructive',
+                  onPress: async () => {
+                    await deleteQuickProject(quickProjectId);
+                    navigation.goBack();
+                  },
+                },
+              ]);
+            }}
+          >
+            <Trash2 color={COLORS.danger} size={16} />
+            <Text style={styles.deleteProjectButtonText}>Delete Project</Text>
+          </TouchableOpacity>
         </View>
 
         <TouchableOpacity style={styles.addButton} onPress={() => setShowPicker(true)}>
@@ -254,6 +293,54 @@ const QuickProjectDetailsScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        transparent
+        visible={showProjectRenameModal}
+        animationType="fade"
+        onRequestClose={() => setShowProjectRenameModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Edit Project Name</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Project name"
+              placeholderTextColor={COLORS.gray}
+              value={renameProjectName}
+              onChangeText={setRenameProjectName}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowProjectRenameModal(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={() => {
+                  if (!renameProjectName.trim()) {
+                    Alert.alert('Validation', 'Please enter project name');
+                    return;
+                  }
+                  Alert.alert('Confirm Update', 'Are you sure you want to update project name?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Update',
+                      onPress: async () => {
+                        await updateQuickProject(quickProjectId, { name: renameProjectName.trim() });
+                        setShowProjectRenameModal(false);
+                        setRenameProjectName('');
+                        loadData();
+                      },
+                    },
+                  ]);
+                }}
+              >
+                <Text style={styles.saveBtnText}>Update</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -290,6 +377,45 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     fontSize: 12,
   },
+  projectActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  secondaryButton: {
+    flex: 1,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    marginLeft: 6,
+    color: '#1D4ED8',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  deleteProjectButton: {
+    flex: 1,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    backgroundColor: '#FEF2F2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteProjectButtonText: {
+    marginLeft: 6,
+    color: '#B91C1C',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   addButton: {
     height: 44,
     borderRadius: 12,
@@ -319,6 +445,7 @@ const styles = StyleSheet.create({
   },
   listContent: { paddingBottom: 20 },
   employeeRow: {
+    overflow: 'hidden',
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -338,6 +465,17 @@ const styles = StyleSheet.create({
   employeeTextWrap: { marginLeft: 8, flex: 1 },
   employeeName: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
   employeeMeta: { color: COLORS.textLight, fontSize: 12, marginTop: 2 },
+  rowWatermark: {
+    position: 'absolute',
+    right: 10,
+    top: 6,
+    fontSize: 42,
+    fontWeight: '800',
+    opacity: 0.12,
+    letterSpacing: 1,
+  },
+  watermarkGreen: { color: '#10B981' },
+  watermarkBlue: { color: '#2563EB' },
   removeBtn: { padding: 6 },
   emptyText: { textAlign: 'center', marginTop: 20, color: COLORS.textLight },
   modalOverlay: {
@@ -349,6 +487,16 @@ const styles = StyleSheet.create({
   },
   modalCard: { width: '100%', maxHeight: '75%', backgroundColor: COLORS.white, borderRadius: 14, padding: 16 },
   modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
+  modalInput: {
+    height: 44,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    color: COLORS.text,
+    fontSize: 14,
+    marginBottom: 10,
+  },
   modalSearchBox: {
     marginBottom: 10,
   },

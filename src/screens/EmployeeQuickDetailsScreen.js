@@ -30,7 +30,7 @@ const EmployeeQuickDetailsScreen = ({ navigation, route }) => {
     loadData();
   }, [loadData]);
 
-  const renderProject = ({ item }) => (
+  const renderProject = ({ item, index }) => (
     <TouchableOpacity
       style={styles.projectRow}
       onPress={() =>
@@ -41,6 +41,9 @@ const EmployeeQuickDetailsScreen = ({ navigation, route }) => {
       }
       activeOpacity={0.75}
     >
+      <Text style={[styles.rowWatermark, index % 2 === 0 ? styles.watermarkBlue : styles.watermarkGreen]}>
+        PROJECT
+      </Text>
       <View style={styles.iconWrap}>
         <Briefcase color={COLORS.warning} size={16} />
       </View>
@@ -113,6 +116,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 14, fontWeight: '700', color: COLORS.textLight, marginBottom: 10 },
   listContent: { paddingBottom: 20 },
   projectRow: {
+    overflow: 'hidden',
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -138,6 +142,17 @@ const styles = StyleSheet.create({
   },
   projectInfo: { flex: 1 },
   projectName: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  rowWatermark: {
+    position: 'absolute',
+    right: 10,
+    top: 6,
+    fontSize: 42,
+    fontWeight: '800',
+    opacity: 0.12,
+    letterSpacing: 1,
+  },
+  watermarkGreen: { color: '#10B981' },
+  watermarkBlue: { color: '#2563EB' },
   emptyText: { textAlign: 'center', marginTop: 20, color: COLORS.textLight },
 });
 

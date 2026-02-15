@@ -45,6 +45,8 @@ const QuickReportScreen = ({ navigation }) => {
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
+  const [employeeFilterQuery, setEmployeeFilterQuery] = useState('');
+  const [projectFilterQuery, setProjectFilterQuery] = useState('');
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(new Date());
@@ -117,6 +119,16 @@ const QuickReportScreen = ({ navigation }) => {
       })
       .map(log => ({
         date: log.date || '-',
+        loggedOn: log.createdAt
+          ? new Date(log.createdAt).toLocaleString([], {
+              year: 'numeric',
+              month: 'short',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            })
+          : '-',
         employeeName: employeeMap[log.quickEmployeeId]?.name || log.employeeName || 'Unknown',
         projectName: projectMap[log.quickProjectId]?.name || log.projectName || 'Unknown',
         workedLogHHMM: log.workLogHHMM || '00:00',
@@ -133,6 +145,16 @@ const QuickReportScreen = ({ navigation }) => {
 
   const selectedEmployeeName = selectedEmployeeId ? employeeMap[selectedEmployeeId]?.name : 'All Employees';
   const selectedProjectName = selectedProjectId ? projectMap[selectedProjectId]?.name : 'All Projects';
+  const filteredEmployees = useMemo(() => {
+    if (!employeeFilterQuery.trim()) return employees;
+    const query = employeeFilterQuery.toLowerCase();
+    return employees.filter(item => item.name?.toLowerCase().includes(query));
+  }, [employeeFilterQuery, employees]);
+  const filteredProjects = useMemo(() => {
+    if (!projectFilterQuery.trim()) return projects;
+    const query = projectFilterQuery.toLowerCase();
+    return projects.filter(item => item.name?.toLowerCase().includes(query));
+  }, [projectFilterQuery, projects]);
   const formatDate = date => {
     if (!date) return 'Select date';
     return date.toISOString().split('T')[0];
@@ -194,11 +216,12 @@ const QuickReportScreen = ({ navigation }) => {
         return;
       }
 
-      const headers = ['Date', 'Employee Name', 'Project Name', 'Worked Log (HH:MM)', 'Start Time', 'End Time'];
+      const headers = ['Work Date', 'Logged On', 'Employee Name', 'Project Name', 'Worked Log (HH:MM)', 'Start Time', 'End Time'];
       const excelData = [headers];
       reportRows.forEach(row => {
         excelData.push([
           row.date,
+          row.loggedOn,
           row.employeeName,
           row.projectName,
           row.workedLogHHMM,
@@ -238,7 +261,7 @@ const QuickReportScreen = ({ navigation }) => {
         return;
       }
 
-      const headers = ['Date', 'Employee Name', 'Project Name', 'Worked Log (HH:MM)', 'Start Time', 'End Time'];
+      const headers = ['Work Date', 'Logged On', 'Employee Name', 'Project Name', 'Worked Log (HH:MM)', 'Start Time', 'End Time'];
       const htmlContent = `
         <html>
           <head>
@@ -265,6 +288,7 @@ const QuickReportScreen = ({ navigation }) => {
                     row => `
                       <tr>
                         <td>${row.date}</td>
+                        <td>${row.loggedOn}</td>
                         <td>${row.employeeName}</td>
                         <td>${row.projectName}</td>
                         <td>${row.workedLogHHMM}</td>
@@ -292,13 +316,19 @@ const QuickReportScreen = ({ navigation }) => {
     }
   };
 
-  const renderRow = ({ item }) => (
+  const renderRow = ({ item, index }) => (
     <View style={styles.rowCard}>
+      <Text style={[styles.rowWatermark, index % 2 === 0 ? styles.watermarkGreen : styles.watermarkBlue]}>
+        {item.workedLogHHMM}
+      </Text>
       <Text style={styles.rowPrimary}>{item.employeeName}</Text>
       <Text style={styles.rowSecondary}>{item.projectName}</Text>
       <View style={styles.metaRow}>
-        <Text style={styles.metaText}>Date: {item.date}</Text>
+        <Text style={styles.metaText}>Work Date: {item.date}</Text>
         <Text style={styles.metaText}>Log: {item.workedLogHHMM}</Text>
+      </View>
+      <View style={styles.metaRow}>
+        <Text style={styles.metaText}>Logged On: {item.loggedOn}</Text>
       </View>
       <View style={styles.metaRow}>
         <Text style={styles.metaText}>Start: {item.startTime}</Text>
@@ -442,26 +472,46 @@ const QuickReportScreen = ({ navigation }) => {
         </View>
       )}
 
-      <Modal transparent visible={showEmployeeModal} animationType="fade" onRequestClose={() => setShowEmployeeModal(false)}>
+      <Modal
+        transparent
+        visible={showEmployeeModal}
+        animationType="fade"
+        onRequestClose={() => {
+          setEmployeeFilterQuery('');
+          setShowEmployeeModal(false);
+        }}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Filter by Employee</Text>
+            <View style={styles.modalSearchBox}>
+              <Search color={COLORS.gray} size={18} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search employee..."
+                placeholderTextColor={COLORS.gray}
+                value={employeeFilterQuery}
+                onChangeText={setEmployeeFilterQuery}
+              />
+            </View>
             <TouchableOpacity
               style={styles.modalItem}
               onPress={() => {
                 setSelectedEmployeeId('');
+                setEmployeeFilterQuery('');
                 setShowEmployeeModal(false);
               }}
             >
               <Text style={styles.modalItemText}>All Employees</Text>
               {!selectedEmployeeId ? <Check color={COLORS.primary} size={16} /> : null}
             </TouchableOpacity>
-            {employees.map(item => (
+            {filteredEmployees.map(item => (
               <TouchableOpacity
                 key={item.quickEmployeeId}
                 style={styles.modalItem}
                 onPress={() => {
                   setSelectedEmployeeId(item.quickEmployeeId);
+                  setEmployeeFilterQuery('');
                   setShowEmployeeModal(false);
                 }}
               >
@@ -469,30 +519,51 @@ const QuickReportScreen = ({ navigation }) => {
                 {selectedEmployeeId === item.quickEmployeeId ? <Check color={COLORS.primary} size={16} /> : null}
               </TouchableOpacity>
             ))}
+            {filteredEmployees.length === 0 ? <Text style={styles.modalEmptyText}>No employees found</Text> : null}
           </View>
         </View>
       </Modal>
 
-      <Modal transparent visible={showProjectModal} animationType="fade" onRequestClose={() => setShowProjectModal(false)}>
+      <Modal
+        transparent
+        visible={showProjectModal}
+        animationType="fade"
+        onRequestClose={() => {
+          setProjectFilterQuery('');
+          setShowProjectModal(false);
+        }}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Filter by Project</Text>
+            <View style={styles.modalSearchBox}>
+              <Search color={COLORS.gray} size={18} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search project..."
+                placeholderTextColor={COLORS.gray}
+                value={projectFilterQuery}
+                onChangeText={setProjectFilterQuery}
+              />
+            </View>
             <TouchableOpacity
               style={styles.modalItem}
               onPress={() => {
                 setSelectedProjectId('');
+                setProjectFilterQuery('');
                 setShowProjectModal(false);
               }}
             >
               <Text style={styles.modalItemText}>All Projects</Text>
               {!selectedProjectId ? <Check color={COLORS.primary} size={16} /> : null}
             </TouchableOpacity>
-            {projects.map(item => (
+            {filteredProjects.map(item => (
               <TouchableOpacity
                 key={item.quickProjectId}
                 style={styles.modalItem}
                 onPress={() => {
                   setSelectedProjectId(item.quickProjectId);
+                  setProjectFilterQuery('');
                   setShowProjectModal(false);
                 }}
               >
@@ -500,6 +571,7 @@ const QuickReportScreen = ({ navigation }) => {
                 {selectedProjectId === item.quickProjectId ? <Check color={COLORS.primary} size={16} /> : null}
               </TouchableOpacity>
             ))}
+            {filteredProjects.length === 0 ? <Text style={styles.modalEmptyText}>No projects found</Text> : null}
           </View>
         </View>
       </Modal>
@@ -655,6 +727,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   rowCard: {
+    overflow: 'hidden',
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -664,6 +737,17 @@ const styles = StyleSheet.create({
   },
   rowPrimary: { fontSize: 15, fontWeight: '700', color: COLORS.text },
   rowSecondary: { marginTop: 2, fontSize: 13, color: COLORS.textLight },
+  rowWatermark: {
+    position: 'absolute',
+    right: 10,
+    top: 8,
+    fontSize: 36,
+    fontWeight: '800',
+    opacity: 0.12,
+    letterSpacing: 1,
+  },
+  watermarkGreen: { color: '#10B981' },
+  watermarkBlue: { color: '#2563EB' },
   metaRow: { marginTop: 6, flexDirection: 'row', justifyContent: 'space-between' },
   metaText: { fontSize: 12, color: COLORS.darkGray },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
@@ -689,6 +773,17 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   modalTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
+  modalSearchBox: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    backgroundColor: COLORS.white,
+    height: 42,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   modalItem: {
     height: 42,
     borderBottomWidth: 1,
@@ -698,6 +793,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   modalItemText: { color: COLORS.text, fontSize: 14 },
+  modalEmptyText: {
+    marginTop: 10,
+    textAlign: 'center',
+    color: COLORS.textLight,
+    fontSize: 13,
+  },
   downloadOption: {
     height: 42,
     borderRadius: 10,

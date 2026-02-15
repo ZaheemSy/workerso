@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,28 +10,26 @@ import {
   Alert,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { ArrowLeft, Plus, FileText, Calendar, Clock, Pencil } from 'lucide-react-native';
+import { ArrowLeft, Search, Users, Briefcase, Calendar, Clock } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
-import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  getQuickProjectById,
   getQuickEmployeesByOrg,
+  getQuickProjectsByOrg,
   createQuickWorkLog,
-  getQuickWorkLogsByEmployee,
-  updateQuickWorkLog,
 } from '../services/storageService';
 
-const EmployeeProjectDetailsScreen = ({ navigation, route }) => {
+const QuickAddWorkLogScreen = ({ navigation }) => {
   const { session } = useAuth();
-  const orgId = session?.orgId || null;
-  const role = session?.role || null;
-  const userId = session?.userId || null;
-  const { quickProjectId, quickEmployeeId } = route.params;
-  const [project, setProject] = useState(null);
-  const [employee, setEmployee] = useState(null);
-  const [logs, setLogs] = useState([]);
-  const [showModal, setShowModal] = useState(false);
+  const [employees, setEmployees] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
+  const [projectSearchQuery, setProjectSearchQuery] = useState('');
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [showWorkLogModal, setShowWorkLogModal] = useState(false);
+
   const [logDate, setLogDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showStartPicker, setShowStartPicker] = useState(false);
@@ -41,46 +39,43 @@ const EmployeeProjectDetailsScreen = ({ navigation, route }) => {
   const [logMode, setLogMode] = useState('timings');
   const [directHH, setDirectHH] = useState('');
   const [directMM, setDirectMM] = useState('');
-  const [editingLog, setEditingLog] = useState(null);
-
-  const canAddLog = role === ROLES.SUPER_ADMIN || role === ROLES.ADMIN;
 
   const loadData = useCallback(async () => {
-    if (!orgId) return;
-    const [projectData, employees] = await Promise.all([
-      getQuickProjectById(quickProjectId),
-      getQuickEmployeesByOrg(orgId),
+    if (!session?.orgId) return;
+    const [employeeList, projectList] = await Promise.all([
+      getQuickEmployeesByOrg(session.orgId),
+      getQuickProjectsByOrg(session.orgId),
     ]);
-    setProject(projectData);
-    setEmployee(employees.find(item => item.quickEmployeeId === quickEmployeeId) || null);
-    const logList = await getQuickWorkLogsByEmployee(orgId, quickEmployeeId);
-    const filtered = logList.filter(log => log.quickProjectId === quickProjectId);
-    setLogs(filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-  }, [quickEmployeeId, quickProjectId, orgId]);
+    setEmployees(employeeList.sort((a, b) => a.name.localeCompare(b.name)));
+    setProjects(projectList.sort((a, b) => a.name.localeCompare(b.name)));
+  }, [session?.orgId]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const openLogModal = () => {
-    if (!canAddLog) {
-      Alert.alert('Not Allowed', 'Only Super Admin or Admin can add work logs.');
-      return;
-    }
-    const now = new Date();
-    const defaultStart = new Date(now);
-    defaultStart.setHours(9, 0, 0, 0);
-    const defaultEnd = new Date(now);
-    defaultEnd.setHours(18, 0, 0, 0);
+  const filteredEmployees = useMemo(() => {
+    if (!employeeSearchQuery.trim()) return employees;
+    const query = employeeSearchQuery.toLowerCase();
+    return employees.filter(item => item.name?.toLowerCase().includes(query));
+  }, [employeeSearchQuery, employees]);
 
-    setLogDate(new Date());
-    setStartTime(defaultStart);
-    setEndTime(defaultEnd);
-    setLogMode('timings');
-    setDirectHH('');
-    setDirectMM('');
-    setEditingLog(null);
-    setShowModal(true);
+  const projectsForSelectedEmployee = useMemo(() => {
+    if (!selectedEmployee) return [];
+    return projects.filter(project => (project.employeeIds || []).includes(selectedEmployee.quickEmployeeId));
+  }, [projects, selectedEmployee]);
+
+  const filteredProjects = useMemo(() => {
+    if (!projectSearchQuery.trim()) return projectsForSelectedEmployee;
+    const query = projectSearchQuery.toLowerCase();
+    return projectsForSelectedEmployee.filter(item => item.name?.toLowerCase().includes(query));
+  }, [projectSearchQuery, projectsForSelectedEmployee]);
+
+  const openProjectModal = employee => {
+    setSelectedEmployee(employee);
+    setSelectedProject(null);
+    setProjectSearchQuery('');
+    setShowProjectModal(true);
   };
 
   const formatDate = date => date.toISOString().split('T')[0];
@@ -96,30 +91,6 @@ const EmployeeProjectDetailsScreen = ({ navigation, route }) => {
       minute: '2-digit',
       hour12: true,
     });
-  const formatDateTime = dateValue => {
-    if (!dateValue) return 'N/A';
-    const dateObj = new Date(dateValue);
-    return dateObj.toLocaleString([], {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-  const parseISODateToDate = isoDate => {
-    if (!isoDate) return new Date();
-    const parsed = new Date(isoDate);
-    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-  };
-  const time24ToDate = (dateValue, timeValue) => {
-    const dateObj = parseISODateToDate(dateValue);
-    if (!timeValue || !/^\d{2}:\d{2}$/.test(timeValue)) return dateObj;
-    const [hours, minutes] = timeValue.split(':').map(Number);
-    dateObj.setHours(hours, minutes, 0, 0);
-    return dateObj;
-  };
 
   const computeDurationFromTimes = (start, end) => {
     const diffMs = end.getTime() - start.getTime();
@@ -129,7 +100,30 @@ const EmployeeProjectDetailsScreen = ({ navigation, route }) => {
     return `${hh}:${mm}`;
   };
 
-  const saveLog = async () => {
+  const openWorkLogModal = project => {
+    const now = new Date();
+    const defaultStart = new Date(now);
+    defaultStart.setHours(9, 0, 0, 0);
+    const defaultEnd = new Date(now);
+    defaultEnd.setHours(18, 0, 0, 0);
+
+    setSelectedProject(project);
+    setShowProjectModal(false);
+    setLogDate(new Date());
+    setStartTime(defaultStart);
+    setEndTime(defaultEnd);
+    setLogMode('timings');
+    setDirectHH('');
+    setDirectMM('');
+    setShowWorkLogModal(true);
+  };
+
+  const saveWorkLog = async () => {
+    if (!selectedEmployee || !selectedProject) {
+      Alert.alert('Validation', 'Please select employee and project');
+      return;
+    }
+
     let duration = '00:00';
     let logStartTime = null;
     let logEndTime = null;
@@ -151,103 +145,43 @@ const EmployeeProjectDetailsScreen = ({ navigation, route }) => {
       const mm = directMM.trim();
       const hhNum = Number(hh);
       const mmNum = Number(mm);
-
       if (!/^\d+$/.test(hh) || !/^\d+$/.test(mm) || hhNum < 0 || hhNum > 23 || mmNum < 0 || mmNum > 59) {
         Alert.alert('Validation', 'Enter valid HH and MM values');
         return;
       }
-
       duration = `${String(hhNum).padStart(2, '0')}:${String(mmNum).padStart(2, '0')}`;
     }
 
-    const payload = {
-      orgId,
-      quickProjectId,
-      quickEmployeeId,
-      employeeName: employee?.name || 'Employee',
-      projectName: project?.name || 'Project',
+    await createQuickWorkLog({
+      orgId: session.orgId,
+      quickProjectId: selectedProject.quickProjectId,
+      quickEmployeeId: selectedEmployee.quickEmployeeId,
+      employeeName: selectedEmployee.name,
+      projectName: selectedProject.name,
       date: formatDate(logDate),
       startTime: logStartTime,
       endTime: logEndTime,
       workLogHHMM: duration,
-      loggedBy: userId,
-    };
+      loggedBy: session.userId,
+    });
 
-    if (editingLog?.quickWorkLogId) {
-      await updateQuickWorkLog(editingLog.quickWorkLogId, payload);
-    } else {
-      await createQuickWorkLog(payload);
-    }
-
-    setDirectHH('');
-    setDirectMM('');
-    setStartTime(null);
-    setEndTime(null);
-    setEditingLog(null);
-    setShowModal(false);
-    loadData();
+    setShowWorkLogModal(false);
+    setSelectedProject(null);
+    Alert.alert('Success', 'Work log added successfully');
   };
 
-  const openEditModal = logItem => {
-    if (!canAddLog) {
-      Alert.alert('Not Allowed', 'Only Super Admin or Admin can edit work logs.');
-      return;
-    }
-    const dateValue = logItem.date || logItem.createdAt;
-    setLogDate(parseISODateToDate(dateValue));
-    if (logItem.startTime && logItem.endTime) {
-      setLogMode('timings');
-      setStartTime(time24ToDate(dateValue, logItem.startTime));
-      setEndTime(time24ToDate(dateValue, logItem.endTime));
-      setDirectHH('');
-      setDirectMM('');
-    } else {
-      setLogMode('direct');
-      const [hh = '', mm = ''] = (logItem.workLogHHMM || '00:00').split(':');
-      setDirectHH(hh);
-      setDirectMM(mm);
-      setStartTime(null);
-      setEndTime(null);
-    }
-    setEditingLog(logItem);
-    setShowModal(true);
-  };
-
-  const renderLog = ({ item, index }) => (
-    <View style={styles.logRow}>
-      <Text style={[styles.logWatermark, index % 2 === 0 ? styles.logWatermarkGreen : styles.logWatermarkBlue]}>
-        {item.workLogHHMM || '00:00'}
-      </Text>
-      <View style={styles.logIcon}>
-        <FileText color={COLORS.primary} size={15} />
+  const renderEmployee = ({ item, index }) => (
+    <TouchableOpacity style={styles.rowCard} onPress={() => openProjectModal(item)} activeOpacity={0.8}>
+      <Text style={[styles.rowWatermark, index % 2 === 0 ? styles.watermarkGreen : styles.watermarkBlue]}>EMP</Text>
+      <View style={styles.iconWrap}>
+        <Users color={COLORS.secondary} size={16} />
       </View>
-      <View style={styles.logTextWrap}>
-        <Text style={styles.logTitle}>{item.workLogHHMM || item.hours || '00:00'} (hh:mm)</Text>
-        <Text style={styles.logSubtitle}>
-          {item.startTime && item.endTime ? `${item.startTime} - ${item.endTime}` : 'Direct work log entry'}
-        </Text>
-        <Text style={styles.logDate}>Work Date: {item.date || new Date(item.createdAt).toISOString().split('T')[0]}</Text>
-        <Text style={styles.logDate}>Logged On: {formatDateTime(item.createdAt)}</Text>
-        {item.updatedAt && item.updatedAt !== item.createdAt ? (
-          <Text style={styles.logDate}>Edited On: {formatDateTime(item.updatedAt)}</Text>
-        ) : null}
+      <View style={styles.rowTextWrap}>
+        <Text style={styles.rowTitle}>{item.name}</Text>
+        <Text style={styles.rowSubtitle}>Select to add worklog</Text>
       </View>
-      {canAddLog ? (
-        <TouchableOpacity style={styles.editLogBtn} onPress={() => openEditModal(item)}>
-          <Pencil color={COLORS.primary} size={16} />
-        </TouchableOpacity>
-      ) : null}
-    </View>
+    </TouchableOpacity>
   );
-
-  const closeModal = () => {
-    setShowModal(false);
-    setEditingLog(null);
-    setDirectHH('');
-    setDirectMM('');
-    setStartTime(null);
-    setEndTime(null);
-  };
 
   return (
     <View style={styles.container}>
@@ -255,34 +189,98 @@ const EmployeeProjectDetailsScreen = ({ navigation, route }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
           <ArrowLeft color={COLORS.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Employee Project Details</Text>
+        <Text style={styles.headerTitle}>Add Worklog</Text>
         <View style={styles.headerSpacer} />
       </View>
 
       <View style={styles.content}>
         <View style={styles.infoCard}>
-          <Text style={styles.title}>{employee?.name || 'Employee'}</Text>
-          <Text style={styles.subtitle}>Project: {project?.name || 'Project'}</Text>
+          <Text style={styles.infoTitle}>Employee Worklog Entry</Text>
+          <Text style={styles.infoSubtitle}>
+            Search employee, choose project, then add worklog.
+          </Text>
         </View>
 
-        <TouchableOpacity style={styles.addButton} onPress={openLogModal}>
-          <Plus color={COLORS.white} size={16} />
-          <Text style={styles.addButtonText}>Add Work Log</Text>
-        </TouchableOpacity>
+        <View style={styles.searchBox}>
+          <Search color={COLORS.gray} size={18} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search employee..."
+            placeholderTextColor={COLORS.gray}
+            value={employeeSearchQuery}
+            onChangeText={setEmployeeSearchQuery}
+          />
+        </View>
 
         <FlatList
-          data={logs}
-          keyExtractor={item => item.quickWorkLogId}
-          renderItem={renderLog}
+          data={filteredEmployees}
+          keyExtractor={item => item.quickEmployeeId}
+          renderItem={renderEmployee}
           contentContainerStyle={styles.listContent}
-          ListEmptyComponent={<Text style={styles.emptyText}>No work logs yet</Text>}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>
+              {employeeSearchQuery.trim() ? 'No employees found' : 'No employees available'}
+            </Text>
+          }
         />
       </View>
 
-      <Modal transparent visible={showModal} animationType="fade" onRequestClose={closeModal}>
+      <Modal transparent visible={showProjectModal} animationType="fade" onRequestClose={() => setShowProjectModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{editingLog ? 'Edit Work Log' : 'Add Work Log'}</Text>
+            <Text style={styles.modalTitle}>Select Project</Text>
+            <Text style={styles.modalSubtitle}>{selectedEmployee?.name || '-'}</Text>
+            <View style={[styles.searchBox, styles.modalSearch]}>
+              <Search color={COLORS.gray} size={18} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search project..."
+                placeholderTextColor={COLORS.gray}
+                value={projectSearchQuery}
+                onChangeText={setProjectSearchQuery}
+              />
+            </View>
+            <FlatList
+              data={filteredProjects}
+              keyExtractor={item => item.quickProjectId}
+              renderItem={({ item, index }) => (
+                <TouchableOpacity style={styles.rowCard} onPress={() => openWorkLogModal(item)} activeOpacity={0.8}>
+                  <Text
+                    style={[styles.rowWatermark, index % 2 === 0 ? styles.watermarkBlue : styles.watermarkGreen]}
+                  >
+                    PROJECT
+                  </Text>
+                  <View style={styles.iconWrap}>
+                    <Briefcase color={COLORS.warning} size={16} />
+                  </View>
+                  <View style={styles.rowTextWrap}>
+                    <Text style={styles.rowTitle}>{item.name}</Text>
+                    <Text style={styles.rowSubtitle}>Tap to continue</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>
+                  {projectSearchQuery.trim() ? 'No projects found' : 'No assigned projects for this employee'}
+                </Text>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={showWorkLogModal}
+        animationType="fade"
+        onRequestClose={() => setShowWorkLogModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Add Work Log</Text>
+            <Text style={styles.modalSubtitle}>
+              {selectedEmployee?.name || ''} • {selectedProject?.name || ''}
+            </Text>
 
             <TouchableOpacity style={styles.selectButton} onPress={() => setShowDatePicker(true)}>
               <View style={styles.selectLeft}>
@@ -353,11 +351,11 @@ const EmployeeProjectDetailsScreen = ({ navigation, route }) => {
             ) : null}
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={closeModal}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowWorkLogModal(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={saveLog}>
-                <Text style={styles.saveBtnText}>{editingLog ? 'Update' : 'Save'}</Text>
+              <TouchableOpacity style={styles.saveBtn} onPress={saveWorkLog}>
+                <Text style={styles.saveBtnText}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -419,26 +417,28 @@ const styles = StyleSheet.create({
   content: { flex: 1, padding: 16 },
   infoCard: {
     borderRadius: 14,
-    backgroundColor: '#F5F3FF',
+    backgroundColor: '#ECFDF5',
     borderWidth: 1,
-    borderColor: '#DDD6FE',
+    borderColor: '#A7F3D0',
     padding: 14,
     marginBottom: 12,
   },
-  title: { fontSize: 20, fontWeight: '700', color: COLORS.text },
-  subtitle: { marginTop: 4, color: COLORS.textLight, fontSize: 14 },
-  addButton: {
+  infoTitle: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
+  infoSubtitle: { marginTop: 4, color: COLORS.textLight, fontSize: 12, lineHeight: 18 },
+  searchBox: {
     height: 44,
     borderRadius: 12,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 12,
     flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 12,
   },
-  addButtonText: { color: COLORS.white, fontSize: 14, fontWeight: '600', marginLeft: 8 },
+  searchInput: { flex: 1, marginLeft: 8, color: COLORS.text, fontSize: 14 },
   listContent: { paddingBottom: 20 },
-  logRow: {
+  rowCard: {
     overflow: 'hidden',
     backgroundColor: COLORS.white,
     borderWidth: 1,
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 10,
     shadowColor: '#0F172A',
     shadowOpacity: 0.04,
@@ -454,39 +454,29 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
   },
-  logIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  rowWatermark: {
+    position: 'absolute',
+    right: 10,
+    top: 8,
+    fontSize: 24,
+    fontWeight: '800',
+    opacity: 0.1,
+    letterSpacing: 1,
+  },
+  watermarkGreen: { color: '#10B981' },
+  watermarkBlue: { color: '#2563EB' },
+  iconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: '#DBEAFE',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
   },
-  logTextWrap: { flex: 1 },
-  logTitle: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
-  logSubtitle: { color: COLORS.textLight, fontSize: 13, marginTop: 2 },
-  logDate: { color: COLORS.gray, fontSize: 11, marginTop: 4 },
-  logWatermark: {
-    position: 'absolute',
-    right: 12,
-    top: 6,
-    fontSize: 44,
-    fontWeight: '800',
-    opacity: 0.14,
-    letterSpacing: 1,
-  },
-  logWatermarkGreen: { color: '#16A34A' },
-  logWatermarkBlue: { color: '#2563EB' },
-  editLogBtn: {
-    marginLeft: 8,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#EEF2FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  rowTextWrap: { flex: 1 },
+  rowTitle: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  rowSubtitle: { marginTop: 2, color: COLORS.textLight, fontSize: 12 },
   emptyText: { textAlign: 'center', marginTop: 20, color: COLORS.textLight },
   modalOverlay: {
     flex: 1,
@@ -495,19 +485,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
-  modalCard: { width: '100%', backgroundColor: COLORS.white, borderRadius: 14, padding: 16 },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
-  modeLabel: {
+  modalCard: { width: '100%', maxHeight: '80%', backgroundColor: COLORS.white, borderRadius: 14, padding: 16 },
+  modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 6 },
+  modalSubtitle: { color: COLORS.textLight, fontSize: 12, marginBottom: 10 },
+  modalSearch: { marginBottom: 10 },
+  selectButton: {
+    height: 44,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
     marginBottom: 10,
-    color: COLORS.text,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  radioRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'space-between',
   },
+  selectLeft: { flexDirection: 'row', alignItems: 'center' },
+  selectText: { color: COLORS.text, fontSize: 14, marginLeft: 8 },
+  selectHint: { color: COLORS.primary, fontSize: 13, fontWeight: '600' },
+  modeLabel: { marginBottom: 10, color: COLORS.text, fontSize: 13, fontWeight: '600' },
+  radioRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   radioOuter: {
     width: 18,
     height: 18,
@@ -517,26 +514,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioOuterActive: {
-    borderColor: COLORS.primary,
-  },
-  radioInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.primary,
-  },
-  radioText: {
-    marginLeft: 8,
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  timeGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
-  },
+  radioOuterActive: { borderColor: COLORS.primary },
+  radioInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.primary },
+  radioText: { marginLeft: 8, color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  timeGrid: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   timeCard: {
     flex: 1,
     borderWidth: 1,
@@ -545,27 +526,10 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: '#F8FAFC',
   },
-  timeLabel: {
-    color: COLORS.textLight,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  timeValueRow: {
-    marginTop: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  timeValue: {
-    marginLeft: 6,
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  durationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
+  timeLabel: { color: COLORS.textLight, fontSize: 12, fontWeight: '600' },
+  timeValueRow: { marginTop: 4, flexDirection: 'row', alignItems: 'center' },
+  timeValue: { marginLeft: 6, color: COLORS.text, fontSize: 14, fontWeight: '700' },
+  durationRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   durationInput: {
     width: 88,
     height: 58,
@@ -578,37 +542,7 @@ const styles = StyleSheet.create({
     color: '#16A34A',
     backgroundColor: '#F0FDF4',
   },
-  durationColon: {
-    marginHorizontal: 12,
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#16A34A',
-  },
-  selectButton: {
-    height: 44,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  selectLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  selectText: {
-    color: COLORS.text,
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  selectHint: {
-    color: COLORS.primary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
+  durationColon: { marginHorizontal: 12, fontSize: 32, fontWeight: '700', color: '#16A34A' },
   modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 6 },
   cancelBtn: { paddingHorizontal: 12, height: 36, justifyContent: 'center' },
   cancelBtnText: { color: COLORS.textLight, fontWeight: '600' },
@@ -623,4 +557,4 @@ const styles = StyleSheet.create({
   saveBtnText: { color: COLORS.white, fontWeight: '600' },
 });
 
-export default EmployeeProjectDetailsScreen;
+export default QuickAddWorkLogScreen;

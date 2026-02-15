@@ -1,10 +1,28 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { X, Briefcase, Users, Layers, ChevronRight, Sparkles, FileSpreadsheet } from 'lucide-react-native';
+import { X, Briefcase, Users, Layers, ChevronRight, Sparkles, FileSpreadsheet, FileText } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 
 const QuickPageScreen = ({ navigation }) => {
   const options = [
+    {
+      key: 'add_worklog',
+      title: 'Add Worklog',
+      subtitle: 'Select employee and project to log work',
+      icon: FileText,
+      color: '#0EA5E9',
+      tint: '#E0F2FE',
+      onPress: () => navigation.navigate('QuickAddWorkLog'),
+    },
+    {
+      key: 'project',
+      title: 'Quick Project',
+      subtitle: 'Assign employees to projects',
+      icon: Briefcase,
+      color: '#D97706',
+      tint: '#FDE68A',
+      onPress: () => navigation.navigate('ProjectPool'),
+    },
     {
       key: 'designation',
       title: 'Designation Pool',
@@ -22,15 +40,6 @@ const QuickPageScreen = ({ navigation }) => {
       color: '#059669',
       tint: '#D1FAE5',
       onPress: () => navigation.navigate('EmployeePool'),
-    },
-    {
-      key: 'project',
-      title: 'Project Pool',
-      subtitle: 'Assign employees to projects',
-      icon: Briefcase,
-      color: '#D97706',
-      tint: '#FDE68A',
-      onPress: () => navigation.navigate('ProjectPool'),
     },
     {
       key: 'quick_report',

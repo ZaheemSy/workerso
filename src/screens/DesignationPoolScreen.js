@@ -86,8 +86,11 @@ const DesignationPoolScreen = ({ navigation }) => {
     ]);
   };
 
-  const renderRow = ({ item }) => (
+  const renderRow = ({ item, index }) => (
     <View style={styles.row}>
+      <Text style={[styles.rowWatermark, index % 2 === 0 ? styles.watermarkGreen : styles.watermarkBlue]}>
+        {item.name?.slice(0, 3)?.toUpperCase() || 'DES'}
+      </Text>
       <View style={styles.rowLeft}>
         <Layers color={COLORS.primary} size={16} />
         <Text style={styles.rowText}>{item.name}</Text>
@@ -209,6 +212,7 @@ const styles = StyleSheet.create({
   addButtonText: { color: COLORS.white, fontSize: 14, fontWeight: '600', marginLeft: 8 },
   listContent: { paddingBottom: 20 },
   row: {
+    overflow: 'hidden',
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -226,6 +230,17 @@ const styles = StyleSheet.create({
   },
   rowLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   rowText: { marginLeft: 8, color: COLORS.text, fontSize: 15, fontWeight: '500' },
+  rowWatermark: {
+    position: 'absolute',
+    right: 10,
+    top: 4,
+    fontSize: 40,
+    fontWeight: '800',
+    opacity: 0.13,
+    letterSpacing: 1,
+  },
+  watermarkGreen: { color: '#10B981' },
+  watermarkBlue: { color: '#3B82F6' },
   rowActions: { flexDirection: 'row' },
   iconBtn: { padding: 8 },
   emptyText: { textAlign: 'center', marginTop: 24, color: COLORS.textLight },

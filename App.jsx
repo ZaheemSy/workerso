@@ -74,6 +74,7 @@ import QuickProjectDetailsScreen from './src/screens/QuickProjectDetailsScreen';
 import EmployeeProjectDetailsScreen from './src/screens/EmployeeProjectDetailsScreen';
 import EmployeeQuickDetailsScreen from './src/screens/EmployeeQuickDetailsScreen';
 import QuickReportScreen from './src/screens/QuickReportScreen';
+import QuickAddWorkLogScreen from './src/screens/QuickAddWorkLogScreen';
 
 // Organization Screens (Developer)
 import OrganizationsScreen from './src/screens/OrganizationsScreen';
@@ -185,6 +186,7 @@ function AppNavigator() {
               <Stack.Screen name="EmployeeProjectDetails" component={EmployeeProjectDetailsScreen} />
               <Stack.Screen name="EmployeeQuickDetails" component={EmployeeQuickDetailsScreen} />
               <Stack.Screen name="QuickReport" component={QuickReportScreen} />
+              <Stack.Screen name="QuickAddWorkLog" component={QuickAddWorkLogScreen} />
             </>
           )}
 
@@ -242,6 +244,7 @@ function AppNavigator() {
               <Stack.Screen name="EmployeeProjectDetails" component={EmployeeProjectDetailsScreen} />
               <Stack.Screen name="EmployeeQuickDetails" component={EmployeeQuickDetailsScreen} />
               <Stack.Screen name="QuickReport" component={QuickReportScreen} />
+              <Stack.Screen name="QuickAddWorkLog" component={QuickAddWorkLogScreen} />
             </>
           )}
         </>

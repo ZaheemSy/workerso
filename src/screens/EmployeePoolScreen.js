@@ -120,8 +120,11 @@ const EmployeePoolScreen = ({ navigation }) => {
     ]);
   };
 
-  const renderRow = ({ item }) => (
+  const renderRow = ({ item, index }) => (
     <View style={styles.row}>
+      <Text style={[styles.rowWatermark, index % 2 === 0 ? styles.watermarkGreen : styles.watermarkBlue]}>
+        EMP
+      </Text>
       <TouchableOpacity
         style={styles.rowLeft}
         onPress={() =>
@@ -340,6 +343,7 @@ const styles = StyleSheet.create({
   },
   listContent: { paddingBottom: 20 },
   row: {
+    overflow: 'hidden',
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -359,6 +363,17 @@ const styles = StyleSheet.create({
   rowTextWrap: { marginLeft: 8, flex: 1 },
   rowName: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
   rowMeta: { color: COLORS.textLight, fontSize: 12, marginTop: 2 },
+  rowWatermark: {
+    position: 'absolute',
+    right: 10,
+    top: 6,
+    fontSize: 42,
+    fontWeight: '800',
+    opacity: 0.12,
+    letterSpacing: 1,
+  },
+  watermarkGreen: { color: '#10B981' },
+  watermarkBlue: { color: '#2563EB' },
   rowActions: { flexDirection: 'row' },
   iconBtn: { padding: 8 },
   emptyText: { textAlign: 'center', marginTop: 24, color: COLORS.textLight },

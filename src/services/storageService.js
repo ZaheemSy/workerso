@@ -701,6 +701,15 @@ export const updateQuickProject = async (quickProjectId, updates) => {
   return projects[index];
 };
 
+export const deleteQuickProject = async quickProjectId => {
+  const projects = (await getItem(STORAGE_KEYS.QUICK_PROJECTS)) || [];
+  await setItem(
+    STORAGE_KEYS.QUICK_PROJECTS,
+    projects.filter(item => item.quickProjectId !== quickProjectId)
+  );
+  return true;
+};
+
 export const addEmployeeToQuickProject = async (quickProjectId, quickEmployeeId) => {
   const project = await getQuickProjectById(quickProjectId);
   if (!project) return null;
