@@ -129,6 +129,41 @@ const EmployeeProjectDetailsScreen = ({ navigation, route }) => {
     return `${hh}:${mm}`;
   };
 
+  const applyPreset = preset => {
+    const baseDate = new Date(logDate);
+    const withTime = (hours, minutes) => {
+      const dt = new Date(baseDate);
+      dt.setHours(hours, minutes, 0, 0);
+      return dt;
+    };
+
+    if (preset === 'full') {
+      setLogMode('timings');
+      setStartTime(withTime(9, 0));
+      setEndTime(withTime(18, 0));
+      setDirectHH('');
+      setDirectMM('');
+      return;
+    }
+
+    if (preset === 'half') {
+      setLogMode('timings');
+      setStartTime(withTime(9, 0));
+      setEndTime(withTime(13, 0));
+      setDirectHH('');
+      setDirectMM('');
+      return;
+    }
+
+    if (preset === 'ot2') {
+      setLogMode('direct');
+      setDirectHH('02');
+      setDirectMM('00');
+      setStartTime(null);
+      setEndTime(null);
+    }
+  };
+
   const saveLog = async () => {
     let duration = '00:00';
     let logStartTime = null;
@@ -293,6 +328,17 @@ const EmployeeProjectDetailsScreen = ({ navigation, route }) => {
             </TouchableOpacity>
 
             <Text style={styles.modeLabel}>Choose how to add work log</Text>
+            <View style={styles.presetRow}>
+              <TouchableOpacity style={styles.presetButton} onPress={() => applyPreset('full')}>
+                <Text style={styles.presetButtonText}>09:00-18:00</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.presetButton} onPress={() => applyPreset('half')}>
+                <Text style={styles.presetButtonText}>Half Day</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.presetButton} onPress={() => applyPreset('ot2')}>
+                <Text style={styles.presetButtonText}>OT 2h</Text>
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity style={styles.radioRow} onPress={() => setLogMode('timings')} activeOpacity={0.8}>
               <View style={[styles.radioOuter, logMode === 'timings' && styles.radioOuterActive]}>
@@ -502,6 +548,26 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 13,
     fontWeight: '600',
+  },
+  presetRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  presetButton: {
+    flex: 1,
+    height: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  presetButtonText: {
+    color: '#1D4ED8',
+    fontSize: 12,
+    fontWeight: '700',
   },
   radioRow: {
     flexDirection: 'row',

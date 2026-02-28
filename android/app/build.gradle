@@ -127,3 +127,14 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+// Ensure VisionCamera prefab package exists before app CMake configure on release.
+if (project.rootProject.findProject(':react-native-vision-camera') != null) {
+    afterEvaluate {
+        tasks.matching { task ->
+            task.name.startsWith("configureCMakeRelWithDebInfo")
+        }.configureEach {
+            dependsOn(":react-native-vision-camera:prefabReleasePackage")
+        }
+    }
+}
