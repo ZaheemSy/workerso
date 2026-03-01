@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { ArrowLeft, Plus, FileText, Calendar, Clock, Pencil } from 'lucide-react-native';
+import { ArrowLeft, Plus, FileText, Calendar, Clock, Pencil, X } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
@@ -201,6 +201,14 @@ const EmployeeProjectDetailsScreen = ({ navigation, route }) => {
       quickEmployeeId,
       employeeName: employee?.name || 'Employee',
       projectName: project?.name || 'Project',
+      quickDepartmentId:
+        (project?.departments || []).find(item =>
+          (item.employeeIds || []).includes(quickEmployeeId)
+        )?.quickDepartmentId || '',
+      departmentName:
+        (project?.departments || []).find(item =>
+          (item.employeeIds || []).includes(quickEmployeeId)
+        )?.name || 'No Department',
       date: formatDate(logDate),
       startTime: logStartTime,
       endTime: logEndTime,
@@ -317,7 +325,12 @@ const EmployeeProjectDetailsScreen = ({ navigation, route }) => {
       <Modal transparent visible={showModal} animationType="fade" onRequestClose={closeModal}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{editingLog ? 'Edit Work Log' : 'Add Work Log'}</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{editingLog ? 'Edit Work Log' : 'Add Work Log'}</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={closeModal}>
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity style={styles.selectButton} onPress={() => setShowDatePicker(true)}>
               <View style={styles.selectLeft}>
@@ -542,6 +555,8 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalCard: { width: '100%', backgroundColor: COLORS.white, borderRadius: 14, padding: 16 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modalCloseBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
   modeLabel: {
     marginBottom: 10,

@@ -30,6 +30,7 @@ import WorksitePhotoUploadScreen from './src/screens/WorksitePhotoUploadScreen';
 import ProjectWorkLogScreen from './src/screens/ProjectWorkLogScreen';
 import SiteUpdateHistoryScreen from './src/screens/SiteUpdateHistoryScreen';
 import MemberProjectDetailScreen from './src/screens/MemberProjectDetailScreen';
+import ProjectGalleryScreen from './src/screens/ProjectGalleryScreen';
 
 // Admin tools
 import AddWorkerScreen from './src/screens/AddWorkerScreen';
@@ -71,6 +72,7 @@ import DesignationPoolScreen from './src/screens/DesignationPoolScreen';
 import EmployeePoolScreen from './src/screens/EmployeePoolScreen';
 import ProjectPoolScreen from './src/screens/ProjectPoolScreen';
 import QuickProjectDetailsScreen from './src/screens/QuickProjectDetailsScreen';
+import QuickProjectGalleryScreen from './src/screens/QuickProjectGalleryScreen';
 import EmployeeProjectDetailsScreen from './src/screens/EmployeeProjectDetailsScreen';
 import EmployeeQuickDetailsScreen from './src/screens/EmployeeQuickDetailsScreen';
 import QuickReportScreen from './src/screens/QuickReportScreen';
@@ -127,6 +129,7 @@ function AppNavigator() {
               <Stack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
               <Stack.Screen name="ProjectWorkLog" component={ProjectWorkLogScreen} />
               <Stack.Screen name="SiteUpdateHistory" component={SiteUpdateHistoryScreen} />
+              <Stack.Screen name="ProjectGallery" component={ProjectGalleryScreen} />
               <Stack.Screen name="MemberProjectDetail" component={MemberProjectDetailScreen} />
             </>
           )}
@@ -166,6 +169,7 @@ function AppNavigator() {
               <Stack.Screen name="WorksitePhotoUpload" component={WorksitePhotoUploadScreen} />
               <Stack.Screen name="ProjectWorkLog" component={ProjectWorkLogScreen} />
               <Stack.Screen name="SiteUpdateHistory" component={SiteUpdateHistoryScreen} />
+              <Stack.Screen name="ProjectGallery" component={ProjectGalleryScreen} />
               <Stack.Screen name="MemberProjectDetail" component={MemberProjectDetailScreen} />
 
               {/* Records & Logs */}
@@ -183,6 +187,7 @@ function AppNavigator() {
               <Stack.Screen name="EmployeePool" component={EmployeePoolScreen} />
               <Stack.Screen name="ProjectPool" component={ProjectPoolScreen} />
               <Stack.Screen name="QuickProjectDetails" component={QuickProjectDetailsScreen} />
+              <Stack.Screen name="QuickProjectGallery" component={QuickProjectGalleryScreen} />
               <Stack.Screen name="EmployeeProjectDetails" component={EmployeeProjectDetailsScreen} />
               <Stack.Screen name="EmployeeQuickDetails" component={EmployeeQuickDetailsScreen} />
               <Stack.Screen name="QuickReport" component={QuickReportScreen} />
@@ -226,6 +231,7 @@ function AppNavigator() {
               <Stack.Screen name="WorksitePhotoUpload" component={WorksitePhotoUploadScreen} />
               <Stack.Screen name="ProjectWorkLog" component={ProjectWorkLogScreen} />
               <Stack.Screen name="SiteUpdateHistory" component={SiteUpdateHistoryScreen} />
+              <Stack.Screen name="ProjectGallery" component={ProjectGalleryScreen} />
               <Stack.Screen name="MemberProjectDetail" component={MemberProjectDetailScreen} />
 
               {/* Records & Reports */}
@@ -241,6 +247,7 @@ function AppNavigator() {
               <Stack.Screen name="EmployeePool" component={EmployeePoolScreen} />
               <Stack.Screen name="ProjectPool" component={ProjectPoolScreen} />
               <Stack.Screen name="QuickProjectDetails" component={QuickProjectDetailsScreen} />
+              <Stack.Screen name="QuickProjectGallery" component={QuickProjectGalleryScreen} />
               <Stack.Screen name="EmployeeProjectDetails" component={EmployeeProjectDetailsScreen} />
               <Stack.Screen name="EmployeeQuickDetails" component={EmployeeQuickDetailsScreen} />
               <Stack.Screen name="QuickReport" component={QuickReportScreen} />

@@ -20,6 +20,7 @@ import {
   Play,
   UserCircle,
   Sparkles,
+  X,
 } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
@@ -261,12 +262,23 @@ const DeveloperDashboard = ({ navigation }) => {
           setTapCount(0);
         }}
       >
-        <Pressable style={styles.splashModalWrapper} onPress={handleSplashTap}>
-          <SplashScreen />
-          <Text style={styles.tapCounter}>
-            Tap {5 - tapCount} more time{5 - tapCount !== 1 ? 's' : ''} to close
-          </Text>
-        </Pressable>
+        <View style={styles.splashModalContainer}>
+          <Pressable style={styles.splashModalWrapper} onPress={handleSplashTap}>
+            <SplashScreen />
+            <Text style={styles.tapCounter}>
+              Tap {5 - tapCount} more time{5 - tapCount !== 1 ? 's' : ''} to close
+            </Text>
+          </Pressable>
+          <TouchableOpacity
+            style={styles.splashCloseBtn}
+            onPress={() => {
+              setShowSplashModal(false);
+              setTapCount(0);
+            }}
+          >
+            <X color={COLORS.text} size={22} />
+          </TouchableOpacity>
+        </View>
       </Modal>
     </View>
   );
@@ -492,8 +504,22 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
   },
+  splashModalContainer: {
+    flex: 1,
+  },
   splashModalWrapper: {
     flex: 1,
+  },
+  splashCloseBtn: {
+    position: 'absolute',
+    top: 48,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tapCounter: {
     position: 'absolute',

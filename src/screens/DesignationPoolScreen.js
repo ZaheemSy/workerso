@@ -9,7 +9,7 @@ import {
   Alert,
   FlatList,
 } from 'react-native';
-import { ArrowLeft, Plus, Pencil, Trash2, Layers } from 'lucide-react-native';
+import { ArrowLeft, Plus, Pencil, Trash2, Layers, X } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -141,7 +141,12 @@ const DesignationPoolScreen = ({ navigation }) => {
       <Modal transparent visible={modalVisible} animationType="fade" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{editingId ? 'Edit Designation' : 'Add Designation'}</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{editingId ? 'Edit Designation' : 'Add Designation'}</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setModalVisible(false)}>
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
             <TextInput
               style={styles.input}
               placeholder="Designation name"
@@ -252,6 +257,8 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalCard: { width: '100%', backgroundColor: COLORS.white, borderRadius: 12, padding: 16 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modalCloseBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
   input: {
     borderWidth: 1,

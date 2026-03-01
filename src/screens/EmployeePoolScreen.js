@@ -9,7 +9,7 @@ import {
   Alert,
   FlatList,
 } from 'react-native';
-import { ArrowLeft, Plus, Pencil, Trash2, Users, ChevronDown, Search } from 'lucide-react-native';
+import { ArrowLeft, Plus, Pencil, Trash2, Users, ChevronDown, Search, X } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -250,7 +250,12 @@ const EmployeePoolScreen = ({ navigation }) => {
       <Modal transparent visible={showEditor} animationType="fade" onRequestClose={closeEditorModal}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{editingId ? 'Edit Employee' : 'Add Employee'}</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{editingId ? 'Edit Employee' : 'Add Employee'}</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={closeEditorModal}>
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
             <TextInput
               style={styles.input}
               placeholder="Employee name"
@@ -316,7 +321,12 @@ const EmployeePoolScreen = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Select Designation</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Designation</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowDesignationPicker(false)}>
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
             {designations.map(item => (
               <TouchableOpacity
                 key={item.quickDesignationId}
@@ -443,6 +453,8 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalCard: { width: '100%', backgroundColor: COLORS.white, borderRadius: 14, padding: 16 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modalCloseBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
   input: {
     borderWidth: 1,

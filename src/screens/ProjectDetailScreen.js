@@ -36,6 +36,7 @@ import {
   Timer,
   Coffee,
   FileText,
+  Image as ImageIcon,
 } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
@@ -866,6 +867,19 @@ const ProjectDetailScreen = ({ navigation, route }) => {
           >
             <History color={COLORS.primary} size={20} />
             <Text style={styles.historyButtonText}>Site Update History</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.galleryButton}
+            onPress={() =>
+              navigation.navigate('ProjectGallery', {
+                projectId: project.projectId,
+                projectName: project.projectName,
+              })
+            }
+          >
+            <ImageIcon color={COLORS.secondary} size={20} />
+            <Text style={styles.galleryButtonText}>Project Gallery</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -2158,6 +2172,22 @@ const styles = StyleSheet.create({
   },
   historyButtonText: {
     color: COLORS.primary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  galleryButton: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: COLORS.secondary,
+  },
+  galleryButtonText: {
+    color: COLORS.secondary,
     fontSize: 15,
     fontWeight: '600',
   },

@@ -677,13 +677,50 @@ export const getQuickProjectById = async quickProjectId => {
   return projects.find(item => item.quickProjectId === quickProjectId) || null;
 };
 
+const normalizeQuickProjectNo = value => String(value || '').trim().toLowerCase();
+
+export const isQuickProjectNoTaken = async (orgId, projectNo, excludeQuickProjectId = null) => {
+  const projects = (await getItem(STORAGE_KEYS.QUICK_PROJECTS)) || [];
+  const normalizedProjectNo = normalizeQuickProjectNo(projectNo);
+  if (!normalizedProjectNo) return false;
+  return projects.some(
+    item =>
+      item.orgId === orgId &&
+      item.quickProjectId !== excludeQuickProjectId &&
+      normalizeQuickProjectNo(item.projectNo) === normalizedProjectNo
+  );
+};
+
 export const createQuickProject = async data => {
   const projects = (await getItem(STORAGE_KEYS.QUICK_PROJECTS)) || [];
+  const normalizedProjectNo = normalizeQuickProjectNo(data.projectNo);
+  if (!normalizedProjectNo) {
+    throw new Error('PROJECT_NO_REQUIRED');
+  }
+  const isDuplicateProjectNo = projects.some(
+    item => item.orgId === data.orgId && normalizeQuickProjectNo(item.projectNo) === normalizedProjectNo
+  );
+  if (isDuplicateProjectNo) {
+    throw new Error('PROJECT_NO_ALREADY_EXISTS');
+  }
   const now = new Date().toISOString();
+  const departments = Array.isArray(data.departments)
+    ? data.departments
+        .map(item => ({
+          quickDepartmentId: item.quickDepartmentId || generateId('quick_department'),
+          name: String(item.name || '').trim(),
+          employeeIds: Array.from(new Set(item.employeeIds || [])),
+          createdAt: item.createdAt || now,
+          updatedAt: now,
+        }))
+        .filter(item => item.name)
+    : [];
   const newItem = {
     quickProjectId: generateId('quick_project'),
     employeeIds: data.employeeIds || [],
     ...data,
+    projectNo: String(data.projectNo).trim(),
+    departments,
     createdAt: now,
     updatedAt: now,
   };
@@ -696,6 +733,35 @@ export const updateQuickProject = async (quickProjectId, updates) => {
   const projects = (await getItem(STORAGE_KEYS.QUICK_PROJECTS)) || [];
   const index = projects.findIndex(item => item.quickProjectId === quickProjectId);
   if (index === -1) return null;
+  if (Array.isArray(updates.departments)) {
+    const now = new Date().toISOString();
+    updates.departments = updates.departments
+      .map(item => ({
+        quickDepartmentId: item.quickDepartmentId || generateId('quick_department'),
+        name: String(item.name || '').trim(),
+        employeeIds: Array.from(new Set(item.employeeIds || [])),
+        createdAt: item.createdAt || now,
+        updatedAt: now,
+      }))
+      .filter(item => item.name);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'projectNo')) {
+    const normalizedProjectNo = normalizeQuickProjectNo(updates.projectNo);
+    if (!normalizedProjectNo) {
+      throw new Error('PROJECT_NO_REQUIRED');
+    }
+    const orgId = updates.orgId || projects[index].orgId;
+    const isDuplicateProjectNo = projects.some(
+      item =>
+        item.orgId === orgId &&
+        item.quickProjectId !== quickProjectId &&
+        normalizeQuickProjectNo(item.projectNo) === normalizedProjectNo
+    );
+    if (isDuplicateProjectNo) {
+      throw new Error('PROJECT_NO_ALREADY_EXISTS');
+    }
+    updates.projectNo = String(updates.projectNo).trim();
+  }
   projects[index] = { ...projects[index], ...updates, updatedAt: new Date().toISOString() };
   await setItem(STORAGE_KEYS.QUICK_PROJECTS, projects);
   return projects[index];
@@ -721,7 +787,11 @@ export const removeEmployeeFromQuickProject = async (quickProjectId, quickEmploy
   const project = await getQuickProjectById(quickProjectId);
   if (!project) return null;
   const employeeIds = (project.employeeIds || []).filter(id => id !== quickEmployeeId);
-  return updateQuickProject(quickProjectId, { employeeIds });
+  const departments = (project.departments || []).map(item => ({
+    ...item,
+    employeeIds: (item.employeeIds || []).filter(id => id !== quickEmployeeId),
+  }));
+  return updateQuickProject(quickProjectId, { employeeIds, departments });
 };
 
 export const createQuickWorkLog = async data => {

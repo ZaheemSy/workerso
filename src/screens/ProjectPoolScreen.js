@@ -9,8 +9,9 @@ import {
   Alert,
   FlatList,
 } from 'react-native';
-import { ArrowLeft, Plus, Briefcase, CheckSquare, Square, ChevronDown, Search, Pencil, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, Plus, Briefcase, CheckSquare, Square, ChevronDown, Search, Pencil, Trash2, X } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
+import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
 import {
   ensureQuickDefaultDesignations,
@@ -18,6 +19,7 @@ import {
   getQuickEmployeesByOrg,
   getQuickProjectsByOrg,
   createQuickProject,
+  isQuickProjectNoTaken,
   updateQuickProject,
   deleteQuickProject,
   createQuickEmployee,
@@ -33,7 +35,9 @@ const ProjectPoolScreen = ({ navigation }) => {
   const [showDesignationPicker, setShowDesignationPicker] = useState(false);
   const [showProjectRenameModal, setShowProjectRenameModal] = useState(false);
   const [projectName, setProjectName] = useState('');
+  const [projectNo, setProjectNo] = useState('');
   const [renameProjectName, setRenameProjectName] = useState('');
+  const [renameProjectNo, setRenameProjectNo] = useState('');
   const [editingProjectId, setEditingProjectId] = useState(null);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -43,6 +47,10 @@ const ProjectPoolScreen = ({ navigation }) => {
   const [designationMode, setDesignationMode] = useState('pool');
   const [selectedDesignationId, setSelectedDesignationId] = useState('');
   const [newDesignationName, setNewDesignationName] = useState('');
+  const [projectDepartments, setProjectDepartments] = useState([]);
+  const [showDepartmentModal, setShowDepartmentModal] = useState(false);
+  const [departmentNameInput, setDepartmentNameInput] = useState('');
+  const canManageQuickProject = session?.role === ROLES.SUPER_ADMIN || session?.role === ROLES.ADMIN;
 
   const employeeMap = useMemo(() => {
     const map = {};
@@ -86,12 +94,16 @@ const ProjectPoolScreen = ({ navigation }) => {
 
   const resetEditor = () => {
     setProjectName('');
+    setProjectNo('');
     setSelectedEmployeeIds([]);
     setEmployeeMode('pool');
     setNewEmployeeName('');
     setDesignationMode('pool');
     setSelectedDesignationId('');
     setNewDesignationName('');
+    setProjectDepartments([]);
+    setDepartmentNameInput('');
+    setShowDepartmentModal(false);
   };
 
   const openCreateModal = () => {
@@ -130,6 +142,12 @@ const ProjectPoolScreen = ({ navigation }) => {
     await createQuickProject({
       orgId: session.orgId,
       name: projectName.trim(),
+      projectNo: projectNo.trim(),
+      departments: projectDepartments.map(item => ({
+        quickDepartmentId: item.quickDepartmentId,
+        name: item.name,
+        employeeIds: [],
+      })),
       employeeIds,
       createdBy: session.userId,
     });
@@ -142,13 +160,31 @@ const ProjectPoolScreen = ({ navigation }) => {
       Alert.alert('Validation', 'Please enter project name');
       return;
     }
+    if (!projectNo.trim()) {
+      Alert.alert('Validation', 'Please enter project no.');
+      return;
+    }
+
+    const duplicateProjectNo = await isQuickProjectNoTaken(session.orgId, projectNo.trim());
+    if (duplicateProjectNo) {
+      Alert.alert('Validation', 'Project no. is already present.');
+      return;
+    }
 
     if (employeeMode === 'pool') {
       if (selectedEmployeeIds.length === 0) {
         Alert.alert('Validation', 'At least one employee is required');
         return;
       }
-      await saveProjectWithEmployeeIds(selectedEmployeeIds);
+      try {
+        await saveProjectWithEmployeeIds(selectedEmployeeIds);
+      } catch (error) {
+        if (error?.message === 'PROJECT_NO_ALREADY_EXISTS') {
+          Alert.alert('Validation', 'Project no. is already present.');
+          return;
+        }
+        Alert.alert('Error', 'Failed to create project');
+      }
       return;
     }
 
@@ -177,7 +213,15 @@ const ProjectPoolScreen = ({ navigation }) => {
           {
             text: 'Use Existing',
             onPress: async () => {
-              await saveProjectWithEmployeeIds([existingEmployee.quickEmployeeId]);
+              try {
+                await saveProjectWithEmployeeIds([existingEmployee.quickEmployeeId]);
+              } catch (error) {
+                if (error?.message === 'PROJECT_NO_ALREADY_EXISTS') {
+                  Alert.alert('Validation', 'Project no. is already present.');
+                  return;
+                }
+                Alert.alert('Error', 'Failed to create project');
+              }
             },
           },
         ]
@@ -192,7 +236,43 @@ const ProjectPoolScreen = ({ navigation }) => {
       createdBy: session.userId,
     });
 
-    await saveProjectWithEmployeeIds([createdEmployee.quickEmployeeId]);
+    try {
+      await saveProjectWithEmployeeIds([createdEmployee.quickEmployeeId]);
+    } catch (error) {
+      if (error?.message === 'PROJECT_NO_ALREADY_EXISTS') {
+        Alert.alert('Validation', 'Project no. is already present.');
+        return;
+      }
+      Alert.alert('Error', 'Failed to create project');
+    }
+  };
+
+  const addDepartmentToDraft = () => {
+    const trimmed = departmentNameInput.trim();
+    if (!trimmed) {
+      Alert.alert('Validation', 'Please enter department name');
+      return;
+    }
+    const isDuplicate = projectDepartments.some(
+      item => item.name?.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+    if (isDuplicate) {
+      Alert.alert('Validation', 'Department already added.');
+      return;
+    }
+    setProjectDepartments(prev => [
+      ...prev,
+      {
+        quickDepartmentId: `quick_department_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        name: trimmed,
+      },
+    ]);
+    setDepartmentNameInput('');
+    setShowDepartmentModal(false);
+  };
+
+  const removeDepartmentFromDraft = quickDepartmentId => {
+    setProjectDepartments(prev => prev.filter(item => item.quickDepartmentId !== quickDepartmentId));
   };
 
   const renderProject = ({ item, index }) => (
@@ -209,6 +289,8 @@ const ProjectPoolScreen = ({ navigation }) => {
       </View>
       <View style={styles.projectInfo}>
         <Text style={styles.projectName}>{item.name}</Text>
+        <Text style={styles.projectNo}>Project No: {item.projectNo || '-'}</Text>
+        <Text style={styles.projectMeta}>Departments: {(item.departments || []).length}</Text>
         <Text style={styles.projectMeta}>{(item.employeeIds || []).length} employee(s)</Text>
       </View>
       <View style={styles.projectActions}>
@@ -217,6 +299,7 @@ const ProjectPoolScreen = ({ navigation }) => {
           onPress={() => {
             setEditingProjectId(item.quickProjectId);
             setRenameProjectName(item.name || '');
+            setRenameProjectNo(item.projectNo || '');
             setShowProjectRenameModal(true);
           }}
         >
@@ -247,7 +330,11 @@ const ProjectPoolScreen = ({ navigation }) => {
   const filteredProjects = useMemo(() => {
     if (!searchQuery.trim()) return projects;
     const query = searchQuery.toLowerCase();
-    return projects.filter(item => item.name?.toLowerCase().includes(query));
+    return projects.filter(
+      item =>
+        item.name?.toLowerCase().includes(query) ||
+        String(item.projectNo || '').toLowerCase().includes(query)
+    );
   }, [projects, searchQuery]);
 
   return (
@@ -277,7 +364,7 @@ const ProjectPoolScreen = ({ navigation }) => {
           <Search color={COLORS.gray} size={18} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search project..."
+            placeholder="Search project name or no..."
             placeholderTextColor={COLORS.gray}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -300,7 +387,12 @@ const ProjectPoolScreen = ({ navigation }) => {
       <Modal transparent visible={showEditor} animationType="fade" onRequestClose={closeCreateModal}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Create Project</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Create Project</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={closeCreateModal}>
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
             <TextInput
               style={styles.input}
               placeholder="Project name"
@@ -308,6 +400,39 @@ const ProjectPoolScreen = ({ navigation }) => {
               value={projectName}
               onChangeText={setProjectName}
             />
+            <TextInput
+              style={[styles.input, styles.mt10]}
+              placeholder="Project no."
+              placeholderTextColor={COLORS.gray}
+              value={projectNo}
+              onChangeText={setProjectNo}
+            />
+
+            {canManageQuickProject ? (
+              <>
+                <View style={styles.departmentsHeader}>
+                  <Text style={styles.sectionLabel}>Departments (Optional)</Text>
+                  <TouchableOpacity style={styles.addDepartmentBtn} onPress={() => setShowDepartmentModal(true)}>
+                    <Text style={styles.addDepartmentBtnText}>Add Department</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {projectDepartments.length > 0 ? (
+                  <View style={styles.departmentList}>
+                    {projectDepartments.map(item => (
+                      <View key={item.quickDepartmentId} style={styles.departmentChip}>
+                        <Text style={styles.departmentChipText}>{item.name}</Text>
+                        <TouchableOpacity onPress={() => removeDepartmentFromDraft(item.quickDepartmentId)}>
+                          <Trash2 color={COLORS.danger} size={14} />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.departmentHintText}>No departments added</Text>
+                )}
+              </>
+            ) : null}
 
             <Text style={styles.sectionLabel}>Add Employees</Text>
             <View style={styles.modeSwitch}>
@@ -406,7 +531,12 @@ const ProjectPoolScreen = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Select Employees</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Employees</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowEmployeePicker(false)}>
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
             <FlatList
               data={employees}
               keyExtractor={item => item.quickEmployeeId}
@@ -438,13 +568,66 @@ const ProjectPoolScreen = ({ navigation }) => {
 
       <Modal
         transparent
+        visible={showDepartmentModal}
+        animationType="fade"
+        onRequestClose={() => {
+          setDepartmentNameInput('');
+          setShowDepartmentModal(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Department</Text>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => {
+                  setDepartmentNameInput('');
+                  setShowDepartmentModal(false);
+                }}
+              >
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Department name"
+              placeholderTextColor={COLORS.gray}
+              value={departmentNameInput}
+              onChangeText={setDepartmentNameInput}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => {
+                  setDepartmentNameInput('');
+                  setShowDepartmentModal(false);
+                }}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={addDepartmentToDraft}>
+                <Text style={styles.saveBtnText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        transparent
         visible={showDesignationPicker}
         animationType="fade"
         onRequestClose={() => setShowDesignationPicker(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Select Designation</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Designation</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowDesignationPicker(false)}>
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
             <FlatList
               data={designations}
               keyExtractor={item => item.quickDesignationId}
@@ -480,7 +663,20 @@ const ProjectPoolScreen = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Edit Project Name</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Project</Text>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => {
+                  setShowProjectRenameModal(false);
+                  setRenameProjectName('');
+                  setRenameProjectNo('');
+                  setEditingProjectId(null);
+                }}
+              >
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
             <TextInput
               style={styles.input}
               placeholder="Project name"
@@ -488,28 +684,69 @@ const ProjectPoolScreen = ({ navigation }) => {
               value={renameProjectName}
               onChangeText={setRenameProjectName}
             />
+            <TextInput
+              style={[styles.input, styles.mt10]}
+              placeholder="Project no."
+              placeholderTextColor={COLORS.gray}
+              value={renameProjectNo}
+              onChangeText={setRenameProjectNo}
+            />
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowProjectRenameModal(false)}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => {
+                  setShowProjectRenameModal(false);
+                  setRenameProjectName('');
+                  setRenameProjectNo('');
+                  setEditingProjectId(null);
+                }}
+              >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.saveBtn}
-                onPress={() => {
+                onPress={async () => {
                   if (!renameProjectName.trim()) {
                     Alert.alert('Validation', 'Please enter project name');
                     return;
                   }
-                  Alert.alert('Confirm Update', 'Are you sure you want to update project name?', [
+                  if (!renameProjectNo.trim()) {
+                    Alert.alert('Validation', 'Please enter project no.');
+                    return;
+                  }
+                  if (!editingProjectId) return;
+                  const duplicateProjectNo = await isQuickProjectNoTaken(
+                    session.orgId,
+                    renameProjectNo.trim(),
+                    editingProjectId
+                  );
+                  if (duplicateProjectNo) {
+                    Alert.alert('Validation', 'Project no. is already present.');
+                    return;
+                  }
+
+                  Alert.alert('Confirm Update', 'Are you sure you want to update project?', [
                     { text: 'Cancel', style: 'cancel' },
                     {
                       text: 'Update',
                       onPress: async () => {
-                        if (!editingProjectId) return;
-                        await updateQuickProject(editingProjectId, { name: renameProjectName.trim() });
-                        setShowProjectRenameModal(false);
-                        setEditingProjectId(null);
-                        setRenameProjectName('');
-                        loadData();
+                        try {
+                          await updateQuickProject(editingProjectId, {
+                            name: renameProjectName.trim(),
+                            projectNo: renameProjectNo.trim(),
+                          });
+                          setShowProjectRenameModal(false);
+                          setEditingProjectId(null);
+                          setRenameProjectName('');
+                          setRenameProjectNo('');
+                          loadData();
+                        } catch (error) {
+                          if (error?.message === 'PROJECT_NO_ALREADY_EXISTS') {
+                            Alert.alert('Validation', 'Project no. is already present.');
+                            return;
+                          }
+                          Alert.alert('Error', 'Failed to update project');
+                        }
                       },
                     },
                   ]);
@@ -616,6 +853,7 @@ const styles = StyleSheet.create({
   },
   projectInfo: { flex: 1 },
   projectName: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  projectNo: { marginTop: 1, color: COLORS.textLight, fontSize: 12, fontWeight: '600' },
   projectMeta: { color: COLORS.textLight, fontSize: 12, marginTop: 2 },
   projectActions: { flexDirection: 'row' },
   actionIconBtn: { padding: 6 },
@@ -639,6 +877,8 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalCard: { width: '100%', maxHeight: '75%', backgroundColor: COLORS.white, borderRadius: 14, padding: 16 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modalCloseBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
   input: {
     borderWidth: 1,
@@ -655,6 +895,55 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 13,
     fontWeight: '700',
+  },
+  departmentsHeader: {
+    marginTop: 8,
+    marginBottom: 2,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  addDepartmentBtn: {
+    height: 28,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addDepartmentBtnText: {
+    color: '#1D4ED8',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  departmentList: {
+    marginTop: 4,
+    marginBottom: 6,
+    gap: 8,
+  },
+  departmentChip: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 36,
+    backgroundColor: COLORS.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  departmentChipText: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  departmentHintText: {
+    marginTop: 4,
+    marginBottom: 6,
+    color: COLORS.textLight,
+    fontSize: 12,
   },
   modeSwitch: {
     flexDirection: 'row',

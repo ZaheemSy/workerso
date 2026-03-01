@@ -9,7 +9,7 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { ArrowLeft, Plus, Edit2, Trash2, Circle } from 'lucide-react-native';
+import { ArrowLeft, Plus, Edit2, Trash2, Circle, X } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserById } from '../services/storageService';
@@ -356,9 +356,21 @@ const HierarchyManagerScreen = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {editingNode?.parentNode ? 'Add Sub-Role' : 'Edit Role'}
-            </Text>
+            <View style={styles.modalTopRow}>
+              <Text style={styles.modalTitle}>
+                {editingNode?.parentNode ? 'Add Sub-Role' : 'Edit Role'}
+              </Text>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => {
+                  setModalVisible(false);
+                  setSelectedRole(null);
+                  setCustomRole('');
+                }}
+              >
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
 
             <Text style={styles.modalSubtitle}>Choose how to add role</Text>
 
@@ -418,7 +430,18 @@ const HierarchyManagerScreen = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.subModalContent}>
-            <Text style={styles.modalTitle}>Select Role Name</Text>
+            <View style={styles.modalTopRow}>
+              <Text style={styles.modalTitle}>Select Role Name</Text>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => {
+                  setShowRoleListModal(false);
+                  setTempSelectedRole(selectedRole);
+                }}
+              >
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
 
             <ScrollView style={styles.roleListContainer} showsVerticalScrollIndicator={false}>
               {ROLE_OPTIONS.filter(r => r !== 'Custom').map((option) => (
@@ -488,7 +511,18 @@ const HierarchyManagerScreen = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.subModalContent}>
-            <Text style={styles.modalTitle}>Custom Role Name</Text>
+            <View style={styles.modalTopRow}>
+              <Text style={styles.modalTitle}>Custom Role Name</Text>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => {
+                  setShowCustomInputModal(false);
+                  setTempCustomRole(customRole);
+                }}
+              >
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
 
             <Text style={styles.modalLabel}>Enter role name</Text>
             <TextInput
@@ -655,6 +689,18 @@ const styles = StyleSheet.create({
     padding: 24,
     width: '100%',
     maxWidth: 400,
+  },
+  modalTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalCloseBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalTitle: {
     fontSize: 20,

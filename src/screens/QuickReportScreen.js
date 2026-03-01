@@ -21,6 +21,9 @@ import {
   FileSpreadsheet,
   ChevronDown,
   Check,
+  CheckSquare,
+  Square,
+  X,
 } from 'lucide-react-native';
 import * as XLSX from 'xlsx';
 import RNFS from 'react-native-fs';
@@ -33,6 +36,8 @@ import {
   getQuickWorkLogsByOrg,
 } from '../services/storageService';
 
+const NO_DEPARTMENT_FILTER = '__no_department__';
+
 const QuickReportScreen = ({ navigation }) => {
   const { session } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -41,12 +46,17 @@ const QuickReportScreen = ({ navigation }) => {
   const [projects, setProjects] = useState([]);
   const [workLogs, setWorkLogs] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
+  const [draftEmployeeIds, setDraftEmployeeIds] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedDepartmentIds, setSelectedDepartmentIds] = useState([]);
+  const [draftDepartmentIds, setDraftDepartmentIds] = useState([]);
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
+  const [showDepartmentModal, setShowDepartmentModal] = useState(false);
   const [employeeFilterQuery, setEmployeeFilterQuery] = useState('');
   const [projectFilterQuery, setProjectFilterQuery] = useState('');
+  const [departmentFilterQuery, setDepartmentFilterQuery] = useState('');
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(new Date());
@@ -95,8 +105,8 @@ const QuickReportScreen = ({ navigation }) => {
   }, [projects]);
 
   const reportRows = useMemo(() => {
-    const rows = workLogs
-      .filter(log => (selectedEmployeeId ? log.quickEmployeeId === selectedEmployeeId : true))
+    let rows = workLogs
+      .filter(log => (selectedEmployeeIds.length > 0 ? selectedEmployeeIds.includes(log.quickEmployeeId) : true))
       .filter(log => (selectedProjectId ? log.quickProjectId === selectedProjectId : true))
       .filter(log => {
         const raw = log.date || '';
@@ -117,44 +127,136 @@ const QuickReportScreen = ({ navigation }) => {
 
         return true;
       })
-      .map(log => ({
-        date: log.date || '-',
-        loggedOn: log.createdAt
-          ? new Date(log.createdAt).toLocaleString([], {
-              year: 'numeric',
-              month: 'short',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: true,
-            })
-          : '-',
-        employeeName: employeeMap[log.quickEmployeeId]?.name || log.employeeName || 'Unknown',
-        projectName: projectMap[log.quickProjectId]?.name || log.projectName || 'Unknown',
-        workedLogHHMM: log.workLogHHMM || '00:00',
-        startTime: log.startTime || '-',
-        endTime: log.endTime || '-',
-      }));
+      .map(log => {
+        const project = projectMap[log.quickProjectId];
+        const derivedDepartment = (project?.departments || []).find(item =>
+          (item.employeeIds || []).includes(log.quickEmployeeId)
+        );
+        return {
+          date: log.date || '-',
+          loggedOn: log.createdAt
+            ? new Date(log.createdAt).toLocaleString([], {
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })
+            : '-',
+          employeeName: employeeMap[log.quickEmployeeId]?.name || log.employeeName || 'Unknown',
+          projectName: project?.name || log.projectName || 'Unknown',
+          projectNo: project?.projectNo || log.projectNo || '-',
+          quickDepartmentId: log.quickDepartmentId || derivedDepartment?.quickDepartmentId || '',
+          departmentName: log.departmentName || derivedDepartment?.name || 'No Department',
+          workedLogHHMM: log.workLogHHMM || '00:00',
+          startTime: log.startTime || '-',
+          endTime: log.endTime || '-',
+        };
+      });
+
+    if (selectedDepartmentIds.length > 0) {
+      rows = rows.filter(row =>
+        selectedDepartmentIds.includes(NO_DEPARTMENT_FILTER)
+          ? !row.quickDepartmentId || selectedDepartmentIds.includes(row.quickDepartmentId)
+          : selectedDepartmentIds.includes(row.quickDepartmentId)
+      );
+    }
 
     if (!searchQuery.trim()) return rows;
     const query = searchQuery.toLowerCase();
     return rows.filter(row =>
       Object.values(row).some(value => String(value).toLowerCase().includes(query))
     );
-  }, [employeeMap, fromDate, projectMap, searchQuery, selectedEmployeeId, selectedProjectId, toDate, workLogs]);
+  }, [employeeMap, fromDate, projectMap, searchQuery, selectedDepartmentIds, selectedEmployeeIds, selectedProjectId, toDate, workLogs]);
 
-  const selectedEmployeeName = selectedEmployeeId ? employeeMap[selectedEmployeeId]?.name : 'All Employees';
+  const selectedEmployeeName = useMemo(() => {
+    if (selectedEmployeeIds.length === 0) return 'All Employees';
+    if (selectedEmployeeIds.length === 1) return employeeMap[selectedEmployeeIds[0]]?.name || '1 Employee';
+    return `${selectedEmployeeIds.length} Employees`;
+  }, [employeeMap, selectedEmployeeIds]);
   const selectedProjectName = selectedProjectId ? projectMap[selectedProjectId]?.name : 'All Projects';
+  const departmentOptions = useMemo(() => {
+    const sourceProjects = selectedProjectId
+      ? projects.filter(item => item.quickProjectId === selectedProjectId)
+      : projects;
+    const unique = {};
+    sourceProjects.forEach(project => {
+      (project.departments || []).forEach(department => {
+        if (!department.quickDepartmentId) return;
+        unique[department.quickDepartmentId] = {
+          quickDepartmentId: department.quickDepartmentId,
+          name: department.name,
+          projectName: project.name,
+        };
+      });
+    });
+    return Object.values(unique).sort((a, b) => a.name.localeCompare(b.name));
+  }, [projects, selectedProjectId]);
+  const selectedDepartmentName = useMemo(() => {
+    if (selectedDepartmentIds.length === 0) return 'All Departments';
+    if (selectedDepartmentIds.length === 1 && selectedDepartmentIds[0] === NO_DEPARTMENT_FILTER) {
+      return 'No Department';
+    }
+    if (selectedDepartmentIds.length === 1) {
+      const department = departmentOptions.find(item => item.quickDepartmentId === selectedDepartmentIds[0]);
+      if (!department) return '1 Department';
+      return selectedProjectId ? department.name : `${department.name} (${department.projectName})`;
+    }
+    return `${selectedDepartmentIds.length} Departments`;
+  }, [departmentOptions, selectedDepartmentIds, selectedProjectId]);
   const filteredEmployees = useMemo(() => {
-    if (!employeeFilterQuery.trim()) return employees;
+    const sourceEmployees = selectedProjectId
+      ? employees.filter(emp => (projectMap[selectedProjectId]?.employeeIds || []).includes(emp.quickEmployeeId))
+      : employees;
+    if (!employeeFilterQuery.trim()) return sourceEmployees;
     const query = employeeFilterQuery.toLowerCase();
-    return employees.filter(item => item.name?.toLowerCase().includes(query));
-  }, [employeeFilterQuery, employees]);
+    return sourceEmployees.filter(item => item.name?.toLowerCase().includes(query));
+  }, [employeeFilterQuery, employees, projectMap, selectedProjectId]);
   const filteredProjects = useMemo(() => {
     if (!projectFilterQuery.trim()) return projects;
     const query = projectFilterQuery.toLowerCase();
-    return projects.filter(item => item.name?.toLowerCase().includes(query));
+    return projects.filter(
+      item =>
+        item.name?.toLowerCase().includes(query) ||
+        String(item.projectNo || '').toLowerCase().includes(query)
+    );
   }, [projectFilterQuery, projects]);
+  const filteredDepartments = useMemo(() => {
+    if (!departmentFilterQuery.trim()) return departmentOptions;
+    const query = departmentFilterQuery.toLowerCase();
+    return departmentOptions.filter(
+      item =>
+        item.name?.toLowerCase().includes(query) ||
+        item.projectName?.toLowerCase().includes(query)
+    );
+  }, [departmentFilterQuery, departmentOptions]);
+
+  const toggleEmployeeSelection = quickEmployeeId => {
+    setDraftEmployeeIds(prev =>
+      prev.includes(quickEmployeeId)
+        ? prev.filter(id => id !== quickEmployeeId)
+        : [...prev, quickEmployeeId]
+    );
+  };
+
+  const toggleDepartmentSelection = departmentId => {
+    setDraftDepartmentIds(prev =>
+      prev.includes(departmentId)
+        ? prev.filter(id => id !== departmentId)
+        : [...prev, departmentId]
+    );
+  };
+
+  const openEmployeeFilterModal = () => {
+    setDraftEmployeeIds(selectedEmployeeIds);
+    setShowEmployeeModal(true);
+  };
+
+  const openDepartmentFilterModal = () => {
+    setDraftDepartmentIds(selectedDepartmentIds);
+    setShowDepartmentModal(true);
+  };
   const formatDate = date => {
     if (!date) return 'Select date';
     return date.toISOString().split('T')[0];
@@ -196,7 +298,7 @@ const QuickReportScreen = ({ navigation }) => {
   };
 
   const getFileName = () => {
-    const employeePart = selectedEmployeeId ? selectedEmployeeName.replace(/ /g, '_') : 'all_employees';
+    const employeePart = selectedEmployeeIds.length > 0 ? selectedEmployeeName.replace(/ /g, '_') : 'all_employees';
     const projectPart = selectedProjectId ? selectedProjectName.replace(/ /g, '_') : 'all_projects';
     return `quick_report_${employeePart}_${projectPart}_${Date.now()}`;
   };
@@ -216,7 +318,17 @@ const QuickReportScreen = ({ navigation }) => {
         return;
       }
 
-      const headers = ['Work Date', 'Logged On', 'Employee Name', 'Project Name', 'Worked Log (HH:MM)', 'Start Time', 'End Time'];
+      const headers = [
+        'Work Date',
+        'Logged On',
+        'Employee Name',
+        'Project Name',
+        'Project No',
+        'Department',
+        'Worked Log (HH:MM)',
+        'Start Time',
+        'End Time',
+      ];
       const excelData = [headers];
       reportRows.forEach(row => {
         excelData.push([
@@ -224,6 +336,8 @@ const QuickReportScreen = ({ navigation }) => {
           row.loggedOn,
           row.employeeName,
           row.projectName,
+          row.projectNo,
+          row.departmentName,
           row.workedLogHHMM,
           row.startTime,
           row.endTime,
@@ -261,7 +375,17 @@ const QuickReportScreen = ({ navigation }) => {
         return;
       }
 
-      const headers = ['Work Date', 'Logged On', 'Employee Name', 'Project Name', 'Worked Log (HH:MM)', 'Start Time', 'End Time'];
+      const headers = [
+        'Work Date',
+        'Logged On',
+        'Employee Name',
+        'Project Name',
+        'Project No',
+        'Department',
+        'Worked Log (HH:MM)',
+        'Start Time',
+        'End Time',
+      ];
       const htmlContent = `
         <html>
           <head>
@@ -291,6 +415,8 @@ const QuickReportScreen = ({ navigation }) => {
                         <td>${row.loggedOn}</td>
                         <td>${row.employeeName}</td>
                         <td>${row.projectName}</td>
+                        <td>${row.projectNo}</td>
+                        <td>${row.departmentName}</td>
                         <td>${row.workedLogHHMM}</td>
                         <td>${row.startTime}</td>
                         <td>${row.endTime}</td>
@@ -308,7 +434,7 @@ const QuickReportScreen = ({ navigation }) => {
       const downloadsPath = Platform.OS === 'android' ? RNFS.DownloadDirectoryPath : RNFS.DocumentDirectoryPath;
       const path = `${downloadsPath}/${filename}`;
       await RNFS.writeFile(path, htmlContent, 'utf8');
-      Alert.alert('Success', `Report saved to:\n${path}\n\nOpen in browser and print/save as PDF.`);
+      Alert.alert('Success', `HTML report saved to:\n${path}\n\nOpen in browser and use Print > Save as PDF.`);
     } catch (error) {
       Alert.alert('Error', `Failed to export report: ${error.message}`);
     } finally {
@@ -322,7 +448,10 @@ const QuickReportScreen = ({ navigation }) => {
         {item.workedLogHHMM}
       </Text>
       <Text style={styles.rowPrimary}>{item.employeeName}</Text>
-      <Text style={styles.rowSecondary}>{item.projectName}</Text>
+      <Text style={styles.rowSecondary}>
+        {item.projectName} • Project No: {item.projectNo}
+      </Text>
+      <Text style={styles.rowSecondary}>Department: {item.departmentName}</Text>
       <View style={styles.metaRow}>
         <Text style={styles.metaText}>Work Date: {item.date}</Text>
         <Text style={styles.metaText}>Log: {item.workedLogHHMM}</Text>
@@ -390,25 +519,50 @@ const QuickReportScreen = ({ navigation }) => {
             <Search color={COLORS.gray} size={18} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search employee, project, date..."
+              placeholder="Search employee, project, department, date..."
               placeholderTextColor={COLORS.gray}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
           </View>
 
-          <View style={styles.filtersRow}>
-            <TouchableOpacity style={styles.filterBtn} onPress={() => setShowEmployeeModal(true)}>
+          <View style={styles.filterGrid}>
+            <TouchableOpacity style={[styles.filterBtn, styles.filterBtnThird]} onPress={openEmployeeFilterModal}>
               <Filter color={COLORS.primary} size={14} />
               <Text style={styles.filterBtnText} numberOfLines={1}>{selectedEmployeeName || 'All Employees'}</Text>
               <ChevronDown color={COLORS.gray} size={14} />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.filterBtn} onPress={() => setShowProjectModal(true)}>
+            <TouchableOpacity style={[styles.filterBtn, styles.filterBtnThird]} onPress={() => setShowProjectModal(true)}>
               <Filter color={COLORS.primary} size={14} />
               <Text style={styles.filterBtnText} numberOfLines={1}>{selectedProjectName || 'All Projects'}</Text>
               <ChevronDown color={COLORS.gray} size={14} />
             </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.filterBtn, styles.filterBtnThird]} onPress={openDepartmentFilterModal}>
+              <Filter color={COLORS.primary} size={14} />
+              <Text style={styles.filterBtnText} numberOfLines={1}>{selectedDepartmentName}</Text>
+              <ChevronDown color={COLORS.gray} size={14} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.selectedFiltersRow}>
+            {selectedEmployeeIds.length > 0 ? (
+              <View style={styles.selectedFilterChip}>
+                <Text style={styles.selectedFilterChipText}>{selectedEmployeeIds.length} Employee(s)</Text>
+                <TouchableOpacity onPress={() => setSelectedEmployeeIds([])}>
+                  <X color="#4338CA" size={14} />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            {selectedDepartmentIds.length > 0 ? (
+              <View style={styles.selectedFilterChip}>
+                <Text style={styles.selectedFilterChipText}>{selectedDepartmentIds.length} Department(s)</Text>
+                <TouchableOpacity onPress={() => setSelectedDepartmentIds([])}>
+                  <X color="#4338CA" size={14} />
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.filtersRow}>
@@ -432,8 +586,9 @@ const QuickReportScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.clearFiltersBtn}
             onPress={() => {
-              setSelectedEmployeeId('');
+              setSelectedEmployeeIds([]);
               setSelectedProjectId('');
+              setSelectedDepartmentIds([]);
               setSearchQuery('');
               setFromDate(null);
               setToDate(new Date());
@@ -478,12 +633,25 @@ const QuickReportScreen = ({ navigation }) => {
         animationType="fade"
         onRequestClose={() => {
           setEmployeeFilterQuery('');
+          setDraftEmployeeIds(selectedEmployeeIds);
           setShowEmployeeModal(false);
         }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Filter by Employee</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filter by Employee</Text>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => {
+                  setEmployeeFilterQuery('');
+                  setDraftEmployeeIds(selectedEmployeeIds);
+                  setShowEmployeeModal(false);
+                }}
+              >
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
             <View style={styles.modalSearchBox}>
               <Search color={COLORS.gray} size={18} />
               <TextInput
@@ -497,29 +665,47 @@ const QuickReportScreen = ({ navigation }) => {
             <TouchableOpacity
               style={styles.modalItem}
               onPress={() => {
-                setSelectedEmployeeId('');
-                setEmployeeFilterQuery('');
-                setShowEmployeeModal(false);
+                setDraftEmployeeIds([]);
               }}
             >
               <Text style={styles.modalItemText}>All Employees</Text>
-              {!selectedEmployeeId ? <Check color={COLORS.primary} size={16} /> : null}
+              {draftEmployeeIds.length === 0 ? <Check color={COLORS.primary} size={16} /> : null}
             </TouchableOpacity>
             {filteredEmployees.map(item => (
               <TouchableOpacity
                 key={item.quickEmployeeId}
                 style={styles.modalItem}
                 onPress={() => {
-                  setSelectedEmployeeId(item.quickEmployeeId);
+                  toggleEmployeeSelection(item.quickEmployeeId);
+                }}
+              >
+                <Text style={styles.modalItemText}>{item.name}</Text>
+                {draftEmployeeIds.includes(item.quickEmployeeId) ? (
+                  <CheckSquare color={COLORS.primary} size={18} />
+                ) : (
+                  <Square color={COLORS.gray} size={18} />
+                )}
+              </TouchableOpacity>
+            ))}
+            {filteredEmployees.length === 0 ? <Text style={styles.modalEmptyText}>No employees found</Text> : null}
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity
+                style={styles.modalGhostBtn}
+                onPress={() => setDraftEmployeeIds([])}
+              >
+                <Text style={styles.modalGhostBtnText}>Clear</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalPrimaryBtn}
+                onPress={() => {
+                  setSelectedEmployeeIds(draftEmployeeIds);
                   setEmployeeFilterQuery('');
                   setShowEmployeeModal(false);
                 }}
               >
-                <Text style={styles.modalItemText}>{item.name}</Text>
-                {selectedEmployeeId === item.quickEmployeeId ? <Check color={COLORS.primary} size={16} /> : null}
+                <Text style={styles.modalPrimaryBtnText}>Apply</Text>
               </TouchableOpacity>
-            ))}
-            {filteredEmployees.length === 0 ? <Text style={styles.modalEmptyText}>No employees found</Text> : null}
+            </View>
           </View>
         </View>
       </Modal>
@@ -535,12 +721,23 @@ const QuickReportScreen = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Filter by Project</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filter by Project</Text>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => {
+                  setProjectFilterQuery('');
+                  setShowProjectModal(false);
+                }}
+              >
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
             <View style={styles.modalSearchBox}>
               <Search color={COLORS.gray} size={18} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search project..."
+                placeholder="Search project name or no..."
                 placeholderTextColor={COLORS.gray}
                 value={projectFilterQuery}
                 onChangeText={setProjectFilterQuery}
@@ -550,6 +747,8 @@ const QuickReportScreen = ({ navigation }) => {
               style={styles.modalItem}
               onPress={() => {
                 setSelectedProjectId('');
+                setSelectedDepartmentIds([]);
+                setSelectedEmployeeIds([]);
                 setProjectFilterQuery('');
                 setShowProjectModal(false);
               }}
@@ -563,11 +762,16 @@ const QuickReportScreen = ({ navigation }) => {
                 style={styles.modalItem}
                 onPress={() => {
                   setSelectedProjectId(item.quickProjectId);
+                  setSelectedDepartmentIds([]);
+                  const projectEmployeeSet = new Set(item.employeeIds || []);
+                  setSelectedEmployeeIds(prev => prev.filter(id => projectEmployeeSet.has(id)));
                   setProjectFilterQuery('');
                   setShowProjectModal(false);
                 }}
               >
-                <Text style={styles.modalItemText}>{item.name}</Text>
+                <Text style={styles.modalItemText}>
+                  {item.name} ({item.projectNo || '-'})
+                </Text>
                 {selectedProjectId === item.quickProjectId ? <Check color={COLORS.primary} size={16} /> : null}
               </TouchableOpacity>
             ))}
@@ -576,15 +780,118 @@ const QuickReportScreen = ({ navigation }) => {
         </View>
       </Modal>
 
+      <Modal
+        transparent
+        visible={showDepartmentModal}
+        animationType="fade"
+        onRequestClose={() => {
+          setDepartmentFilterQuery('');
+          setDraftDepartmentIds(selectedDepartmentIds);
+          setShowDepartmentModal(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filter by Department</Text>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => {
+                  setDepartmentFilterQuery('');
+                  setDraftDepartmentIds(selectedDepartmentIds);
+                  setShowDepartmentModal(false);
+                }}
+              >
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalSearchBox}>
+              <Search color={COLORS.gray} size={18} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder={selectedProjectId ? 'Search department...' : 'Search department or project...'}
+                placeholderTextColor={COLORS.gray}
+                value={departmentFilterQuery}
+                onChangeText={setDepartmentFilterQuery}
+              />
+            </View>
+            <TouchableOpacity
+              style={styles.modalItem}
+              onPress={() => {
+                setDraftDepartmentIds([]);
+              }}
+            >
+              <Text style={styles.modalItemText}>All Departments</Text>
+              {draftDepartmentIds.length === 0 ? <Check color={COLORS.primary} size={16} /> : null}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalItem}
+              onPress={() => {
+                toggleDepartmentSelection(NO_DEPARTMENT_FILTER);
+              }}
+            >
+              <Text style={styles.modalItemText}>No Department</Text>
+              {draftDepartmentIds.includes(NO_DEPARTMENT_FILTER) ? (
+                <CheckSquare color={COLORS.primary} size={18} />
+              ) : (
+                <Square color={COLORS.gray} size={18} />
+              )}
+            </TouchableOpacity>
+            {filteredDepartments.map(item => (
+              <TouchableOpacity
+                key={item.quickDepartmentId}
+                style={styles.modalItem}
+                onPress={() => {
+                  toggleDepartmentSelection(item.quickDepartmentId);
+                }}
+              >
+                <Text style={styles.modalItemText}>
+                  {selectedProjectId ? item.name : `${item.name} (${item.projectName})`}
+                </Text>
+                {draftDepartmentIds.includes(item.quickDepartmentId) ? (
+                  <CheckSquare color={COLORS.primary} size={18} />
+                ) : (
+                  <Square color={COLORS.gray} size={18} />
+                )}
+              </TouchableOpacity>
+            ))}
+            {filteredDepartments.length === 0 ? <Text style={styles.modalEmptyText}>No departments found</Text> : null}
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity
+                style={styles.modalGhostBtn}
+                onPress={() => setDraftDepartmentIds([])}
+              >
+                <Text style={styles.modalGhostBtnText}>Clear</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalPrimaryBtn}
+                onPress={() => {
+                  setSelectedDepartmentIds(draftDepartmentIds);
+                  setDepartmentFilterQuery('');
+                  setShowDepartmentModal(false);
+                }}
+              >
+                <Text style={styles.modalPrimaryBtnText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal transparent visible={showDownloadModal} animationType="fade" onRequestClose={() => setShowDownloadModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.downloadModalCard}>
-            <Text style={styles.modalTitle}>Download Report</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Download Report</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowDownloadModal(false)}>
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity style={styles.downloadOption} onPress={downloadExcel}>
               <Text style={styles.downloadOptionText}>Download as Excel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.downloadOption} onPress={downloadPdfHtml}>
-              <Text style={styles.downloadOptionText}>Download as PDF</Text>
+              <Text style={styles.downloadOptionText}>Download as HTML (Print PDF)</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.cancelDownload} onPress={() => setShowDownloadModal(false)}>
               <Text style={styles.cancelDownloadText}>Cancel</Text>
@@ -666,6 +973,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
+  filterGrid: {
+    marginTop: 10,
+    flexDirection: 'row',
+    gap: 8,
+  },
   filterBtn: {
     flex: 1,
     height: 40,
@@ -678,12 +990,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  filterBtnThird: {
+    flex: 0,
+    width: '31%',
+    minWidth: 98,
+  },
   filterBtnText: {
     flex: 1,
     marginHorizontal: 6,
     color: COLORS.text,
     fontSize: 12,
     fontWeight: '600',
+  },
+  selectedFiltersRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  selectedFilterChip: {
+    height: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  selectedFilterChipText: {
+    color: '#4338CA',
+    fontSize: 12,
+    fontWeight: '700',
   },
   listContent: { paddingTop: 12, paddingBottom: 20 },
   clearFiltersBtn: {
@@ -772,6 +1111,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
   },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modalCloseBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   modalTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
   modalSearchBox: {
     borderWidth: 1,
@@ -793,6 +1134,40 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   modalItemText: { color: COLORS.text, fontSize: 14 },
+  modalButtonsRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  modalGhostBtn: {
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalGhostBtnText: {
+    color: COLORS.textLight,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modalPrimaryBtn: {
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalPrimaryBtnText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: '700',
+  },
   modalEmptyText: {
     marginTop: 10,
     textAlign: 'center',

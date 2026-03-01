@@ -10,8 +10,9 @@ import {
   Alert,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { ArrowLeft, Search, Users, Briefcase, Calendar, Clock } from 'lucide-react-native';
+import { ArrowLeft, Search, Users, Briefcase, Calendar, Clock, X } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
+import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getQuickEmployeesByOrg,
@@ -19,17 +20,33 @@ import {
   createQuickWorkLog,
 } from '../services/storageService';
 
+const FLOW_EMPLOYEE_FIRST = 'employee_first';
+const FLOW_PROJECT_FIRST = 'project_first';
+const DEPT_ALL = '__all__';
+const DEPT_NONE = '__none__';
+
 const QuickAddWorkLogScreen = ({ navigation }) => {
   const { session } = useAuth();
+  const canAddLog = session?.role === ROLES.SUPER_ADMIN || session?.role === ROLES.ADMIN;
+
   const [employees, setEmployees] = useState([]);
   const [projects, setProjects] = useState([]);
-  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
-  const [projectSearchQuery, setProjectSearchQuery] = useState('');
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [showProjectModal, setShowProjectModal] = useState(false);
-  const [showWorkLogModal, setShowWorkLogModal] = useState(false);
 
+  const [flowTab, setFlowTab] = useState(FLOW_EMPLOYEE_FIRST);
+
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [projectSearchQuery, setProjectSearchQuery] = useState('');
+  const [employeeFlowDepartmentFilter, setEmployeeFlowDepartmentFilter] = useState(DEPT_ALL);
+
+  const [projectFirstProjectSearch, setProjectFirstProjectSearch] = useState('');
+  const [projectFirstEmployeeSearch, setProjectFirstEmployeeSearch] = useState('');
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [showProjectEmployeeModal, setShowProjectEmployeeModal] = useState(false);
+  const [projectFirstDepartmentFilter, setProjectFirstDepartmentFilter] = useState(DEPT_ALL);
+
+  const [showWorkLogModal, setShowWorkLogModal] = useState(false);
   const [logDate, setLogDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showStartPicker, setShowStartPicker] = useState(false);
@@ -39,6 +56,8 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
   const [logMode, setLogMode] = useState('timings');
   const [directHH, setDirectHH] = useState('');
   const [directMM, setDirectMM] = useState('');
+
+  const [recentSelection, setRecentSelection] = useState(null);
 
   const loadData = useCallback(async () => {
     if (!session?.orgId) return;
@@ -54,6 +73,13 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
     loadData();
   }, [loadData]);
 
+  const getEmployeeDepartmentInProject = useCallback((project, quickEmployeeId) => {
+    if (!project || !quickEmployeeId) return null;
+    return (project.departments || []).find(item =>
+      (item.employeeIds || []).includes(quickEmployeeId)
+    ) || null;
+  }, []);
+
   const filteredEmployees = useMemo(() => {
     if (!employeeSearchQuery.trim()) return employees;
     const query = employeeSearchQuery.toLowerCase();
@@ -65,18 +91,100 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
     return projects.filter(project => (project.employeeIds || []).includes(selectedEmployee.quickEmployeeId));
   }, [projects, selectedEmployee]);
 
-  const filteredProjects = useMemo(() => {
-    if (!projectSearchQuery.trim()) return projectsForSelectedEmployee;
-    const query = projectSearchQuery.toLowerCase();
-    return projectsForSelectedEmployee.filter(item => item.name?.toLowerCase().includes(query));
-  }, [projectSearchQuery, projectsForSelectedEmployee]);
+  const employeeFlowDepartmentOptions = useMemo(() => {
+    const options = [];
+    const unique = {};
+    let hasNoDepartment = false;
 
-  const openProjectModal = employee => {
-    setSelectedEmployee(employee);
-    setSelectedProject(null);
-    setProjectSearchQuery('');
-    setShowProjectModal(true);
-  };
+    projectsForSelectedEmployee.forEach(project => {
+      const department = getEmployeeDepartmentInProject(project, selectedEmployee?.quickEmployeeId);
+      if (!department) {
+        hasNoDepartment = true;
+        return;
+      }
+      if (!unique[department.quickDepartmentId]) {
+        unique[department.quickDepartmentId] = department;
+        options.push({
+          id: department.quickDepartmentId,
+          name: department.name,
+        });
+      }
+    });
+
+    if (hasNoDepartment) {
+      options.push({ id: DEPT_NONE, name: 'No Department' });
+    }
+
+    return options.sort((a, b) => a.name.localeCompare(b.name));
+  }, [getEmployeeDepartmentInProject, projectsForSelectedEmployee, selectedEmployee?.quickEmployeeId]);
+
+  const filteredProjects = useMemo(() => {
+    let list = projectsForSelectedEmployee;
+
+    if (employeeFlowDepartmentFilter !== DEPT_ALL) {
+      list = list.filter(project => {
+        const department = getEmployeeDepartmentInProject(project, selectedEmployee?.quickEmployeeId);
+        if (employeeFlowDepartmentFilter === DEPT_NONE) return !department;
+        return department?.quickDepartmentId === employeeFlowDepartmentFilter;
+      });
+    }
+
+    if (!projectSearchQuery.trim()) return list;
+    const query = projectSearchQuery.toLowerCase();
+    return list.filter(
+      item =>
+        item.name?.toLowerCase().includes(query) ||
+        String(item.projectNo || '').toLowerCase().includes(query)
+    );
+  }, [employeeFlowDepartmentFilter, getEmployeeDepartmentInProject, projectSearchQuery, projectsForSelectedEmployee, selectedEmployee?.quickEmployeeId]);
+
+  const filteredProjectsProjectFirst = useMemo(() => {
+    if (!projectFirstProjectSearch.trim()) return projects;
+    const query = projectFirstProjectSearch.toLowerCase();
+    return projects.filter(
+      item =>
+        item.name?.toLowerCase().includes(query) ||
+        String(item.projectNo || '').toLowerCase().includes(query)
+    );
+  }, [projectFirstProjectSearch, projects]);
+
+  const projectFirstDepartmentOptions = useMemo(() => {
+    if (!selectedProject) return [];
+    const options = (selectedProject.departments || []).map(item => ({
+      id: item.quickDepartmentId,
+      name: item.name,
+    }));
+    options.sort((a, b) => a.name.localeCompare(b.name));
+    const hasNoDepartmentEmployees = (selectedProject.employeeIds || []).some(empId => {
+      const dept = getEmployeeDepartmentInProject(selectedProject, empId);
+      return !dept;
+    });
+    if (hasNoDepartmentEmployees) options.push({ id: DEPT_NONE, name: 'No Department' });
+    return options;
+  }, [getEmployeeDepartmentInProject, selectedProject]);
+
+  const filteredProjectFirstEmployees = useMemo(() => {
+    if (!selectedProject) return [];
+
+    let list = employees.filter(item => (selectedProject.employeeIds || []).includes(item.quickEmployeeId));
+
+    if (projectFirstDepartmentFilter !== DEPT_ALL) {
+      list = list.filter(item => {
+        const department = getEmployeeDepartmentInProject(selectedProject, item.quickEmployeeId);
+        if (projectFirstDepartmentFilter === DEPT_NONE) return !department;
+        return department?.quickDepartmentId === projectFirstDepartmentFilter;
+      });
+    }
+
+    if (!projectFirstEmployeeSearch.trim()) return list;
+    const query = projectFirstEmployeeSearch.toLowerCase();
+    return list.filter(item => item.name?.toLowerCase().includes(query));
+  }, [employees, getEmployeeDepartmentInProject, projectFirstDepartmentFilter, projectFirstEmployeeSearch, selectedProject]);
+
+  const selectedProjectDepartment = useMemo(() => {
+    if (!selectedProject || !selectedEmployee) return null;
+    return getEmployeeDepartmentInProject(selectedProject, selectedEmployee.quickEmployeeId);
+  }, [getEmployeeDepartmentInProject, selectedEmployee, selectedProject]);
 
   const formatDate = date => date.toISOString().split('T')[0];
   const formatTime24 = date =>
@@ -101,14 +209,15 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
   };
 
   const applyPreset = preset => {
-    const baseDate = new Date(logDate);
+    const baseDate = preset === 'today_full' ? new Date() : new Date(logDate);
     const withTime = (hours, minutes) => {
       const dt = new Date(baseDate);
       dt.setHours(hours, minutes, 0, 0);
       return dt;
     };
 
-    if (preset === 'full') {
+    if (preset === 'full' || preset === 'today_full') {
+      setLogDate(new Date(baseDate));
       setLogMode('timings');
       setStartTime(withTime(9, 0));
       setEndTime(withTime(18, 0));
@@ -135,7 +244,25 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
     }
   };
 
-  const openWorkLogModal = project => {
+  const openProjectModal = employee => {
+    if (!canAddLog) return;
+    setSelectedEmployee(employee);
+    setSelectedProject(null);
+    setProjectSearchQuery('');
+    setEmployeeFlowDepartmentFilter(DEPT_ALL);
+    setShowProjectModal(true);
+  };
+
+  const openProjectFirstEmployeeModal = project => {
+    if (!canAddLog) return;
+    setSelectedProject(project);
+    setProjectFirstEmployeeSearch('');
+    setProjectFirstDepartmentFilter(DEPT_ALL);
+    setShowProjectEmployeeModal(true);
+  };
+
+  const openWorkLogModal = ({ project, employee }) => {
+    if (!canAddLog) return;
     const now = new Date();
     const defaultStart = new Date(now);
     defaultStart.setHours(9, 0, 0, 0);
@@ -143,7 +270,9 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
     defaultEnd.setHours(18, 0, 0, 0);
 
     setSelectedProject(project);
+    setSelectedEmployee(employee);
     setShowProjectModal(false);
+    setShowProjectEmployeeModal(false);
     setLogDate(new Date());
     setStartTime(defaultStart);
     setEndTime(defaultEnd);
@@ -153,9 +282,25 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
     setShowWorkLogModal(true);
   };
 
-  const saveWorkLog = async () => {
+  const saveWorkLog = async (skipNoDepartmentConfirmation = false) => {
     if (!selectedEmployee || !selectedProject) {
       Alert.alert('Validation', 'Please select employee and project');
+      return;
+    }
+
+    if (
+      !skipNoDepartmentConfirmation &&
+      (selectedProject.departments || []).length > 0 &&
+      !selectedProjectDepartment
+    ) {
+      Alert.alert(
+        'No Department',
+        'This employee is not assigned to a department in this project. Continue as No Department?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Continue', onPress: () => saveWorkLog(true) },
+        ]
+      );
       return;
     }
 
@@ -193,6 +338,9 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
       quickEmployeeId: selectedEmployee.quickEmployeeId,
       employeeName: selectedEmployee.name,
       projectName: selectedProject.name,
+      projectNo: selectedProject.projectNo || '',
+      quickDepartmentId: selectedProjectDepartment?.quickDepartmentId || '',
+      departmentName: selectedProjectDepartment?.name || 'No Department',
       date: formatDate(logDate),
       startTime: logStartTime,
       endTime: logEndTime,
@@ -200,12 +348,27 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
       loggedBy: session.userId,
     });
 
+    setRecentSelection({
+      quickProjectId: selectedProject.quickProjectId,
+      quickEmployeeId: selectedEmployee.quickEmployeeId,
+    });
+
     setShowWorkLogModal(false);
     setSelectedProject(null);
+    setSelectedEmployee(null);
     Alert.alert('Success', 'Work log added successfully');
   };
 
-  const renderEmployee = ({ item, index }) => (
+  const recentProject = useMemo(
+    () => projects.find(item => item.quickProjectId === recentSelection?.quickProjectId) || null,
+    [projects, recentSelection?.quickProjectId]
+  );
+  const recentEmployee = useMemo(
+    () => employees.find(item => item.quickEmployeeId === recentSelection?.quickEmployeeId) || null,
+    [employees, recentSelection?.quickEmployeeId]
+  );
+
+  const renderEmployeeFirstRow = ({ item, index }) => (
     <TouchableOpacity style={styles.rowCard} onPress={() => openProjectModal(item)} activeOpacity={0.8}>
       <Text style={[styles.rowWatermark, index % 2 === 0 ? styles.watermarkGreen : styles.watermarkBlue]}>EMP</Text>
       <View style={styles.iconWrap}>
@@ -213,10 +376,60 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
       </View>
       <View style={styles.rowTextWrap}>
         <Text style={styles.rowTitle}>{item.name}</Text>
-        <Text style={styles.rowSubtitle}>Select to add worklog</Text>
+        <Text style={styles.rowSubtitle}>Select to choose project</Text>
       </View>
     </TouchableOpacity>
   );
+
+  const renderProjectFirstProjectRow = ({ item, index }) => (
+    <TouchableOpacity style={styles.rowCard} onPress={() => openProjectFirstEmployeeModal(item)} activeOpacity={0.8}>
+      <Text style={[styles.rowWatermark, index % 2 === 0 ? styles.watermarkBlue : styles.watermarkGreen]}>PROJECT</Text>
+      <View style={styles.iconWrap}>
+        <Briefcase color={COLORS.warning} size={16} />
+      </View>
+      <View style={styles.rowTextWrap}>
+        <Text style={styles.rowTitle}>{item.name}</Text>
+        <Text style={styles.rowSubtitle}>Project No: {item.projectNo || '-'} • {(item.employeeIds || []).length} employee(s)</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderProjectFirstEmployeeRow = ({ item }) => {
+    const department = getEmployeeDepartmentInProject(selectedProject, item.quickEmployeeId);
+    return (
+      <TouchableOpacity
+        style={styles.rowCard}
+        onPress={() => openWorkLogModal({ project: selectedProject, employee: item })}
+        activeOpacity={0.8}
+      >
+        <View style={styles.iconWrap}>
+          <Users color={COLORS.secondary} size={16} />
+        </View>
+        <View style={styles.rowTextWrap}>
+          <Text style={styles.rowTitle}>{item.name}</Text>
+          <Text style={styles.rowSubtitle}>Department: {department?.name || 'No Department'}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  if (!canAddLog) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+            <ArrowLeft color={COLORS.text} size={24} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Add Worklog</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+        <View style={styles.center}>
+          <Text style={styles.emptyTitle}>Access Restricted</Text>
+          <Text style={styles.emptyText}>Only Super Admin or Admin can add quick work logs.</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -230,73 +443,215 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
 
       <View style={styles.content}>
         <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Employee Worklog Entry</Text>
-          <Text style={styles.infoSubtitle}>
-            Search employee, choose project, then add worklog.
-          </Text>
+          <Text style={styles.infoTitle}>Quick Worklog Entry</Text>
+          <Text style={styles.infoSubtitle}>Choose your flow, then log by timing or direct HH:MM.</Text>
         </View>
 
-        <View style={styles.searchBox}>
-          <Search color={COLORS.gray} size={18} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search employee..."
-            placeholderTextColor={COLORS.gray}
-            value={employeeSearchQuery}
-            onChangeText={setEmployeeSearchQuery}
-          />
+        {recentProject && recentEmployee ? (
+          <TouchableOpacity
+            style={styles.recentBtn}
+            onPress={() => openWorkLogModal({ project: recentProject, employee: recentEmployee })}
+          >
+            <Text style={styles.recentBtnText}>Recent: {recentEmployee.name} • {recentProject.name}</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <View style={styles.tabRow}>
+          <TouchableOpacity
+            style={[styles.tabBtn, flowTab === FLOW_EMPLOYEE_FIRST && styles.tabBtnActive]}
+            onPress={() => setFlowTab(FLOW_EMPLOYEE_FIRST)}
+          >
+            <Text style={[styles.tabBtnText, flowTab === FLOW_EMPLOYEE_FIRST && styles.tabBtnTextActive]}>Employee → Project</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabBtn, flowTab === FLOW_PROJECT_FIRST && styles.tabBtnActive]}
+            onPress={() => setFlowTab(FLOW_PROJECT_FIRST)}
+          >
+            <Text style={[styles.tabBtnText, flowTab === FLOW_PROJECT_FIRST && styles.tabBtnTextActive]}>Project → Employee</Text>
+          </TouchableOpacity>
         </View>
 
-        <FlatList
-          data={filteredEmployees}
-          keyExtractor={item => item.quickEmployeeId}
-          renderItem={renderEmployee}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              {employeeSearchQuery.trim() ? 'No employees found' : 'No employees available'}
-            </Text>
-          }
-        />
+        {flowTab === FLOW_EMPLOYEE_FIRST ? (
+          <>
+            <View style={styles.searchBox}>
+              <Search color={COLORS.gray} size={18} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search employee..."
+                placeholderTextColor={COLORS.gray}
+                value={employeeSearchQuery}
+                onChangeText={setEmployeeSearchQuery}
+              />
+            </View>
+
+            <FlatList
+              data={filteredEmployees}
+              keyExtractor={item => item.quickEmployeeId}
+              renderItem={renderEmployeeFirstRow}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>
+                  {employeeSearchQuery.trim() ? 'No employees found' : 'No employees available'}
+                </Text>
+              }
+            />
+          </>
+        ) : (
+          <>
+            <View style={styles.searchBox}>
+              <Search color={COLORS.gray} size={18} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search project name or no..."
+                placeholderTextColor={COLORS.gray}
+                value={projectFirstProjectSearch}
+                onChangeText={setProjectFirstProjectSearch}
+              />
+            </View>
+
+            <FlatList
+              data={filteredProjectsProjectFirst}
+              keyExtractor={item => item.quickProjectId}
+              renderItem={renderProjectFirstProjectRow}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>
+                  {projectFirstProjectSearch.trim() ? 'No projects found' : 'No projects available'}
+                </Text>
+              }
+            />
+          </>
+        )}
       </View>
 
       <Modal transparent visible={showProjectModal} animationType="fade" onRequestClose={() => setShowProjectModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Select Project</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Project</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowProjectModal(false)}>
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
             <Text style={styles.modalSubtitle}>{selectedEmployee?.name || '-'}</Text>
+
+            {employeeFlowDepartmentOptions.length > 0 ? (
+              <FlatList
+                horizontal
+                data={[{ id: DEPT_ALL, name: 'All Departments' }, ...employeeFlowDepartmentOptions]}
+                keyExtractor={item => item.id}
+                contentContainerStyle={styles.chipsRow}
+                showsHorizontalScrollIndicator={false}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.chip, employeeFlowDepartmentFilter === item.id && styles.chipActive]}
+                    onPress={() => setEmployeeFlowDepartmentFilter(item.id)}
+                  >
+                    <Text style={[styles.chipText, employeeFlowDepartmentFilter === item.id && styles.chipTextActive]}>
+                      {item.name}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
+            ) : null}
+
             <View style={[styles.searchBox, styles.modalSearch]}>
               <Search color={COLORS.gray} size={18} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search project..."
+                placeholder="Search project name or no..."
                 placeholderTextColor={COLORS.gray}
                 value={projectSearchQuery}
                 onChangeText={setProjectSearchQuery}
               />
             </View>
+
             <FlatList
               data={filteredProjects}
               keyExtractor={item => item.quickProjectId}
-              renderItem={({ item, index }) => (
-                <TouchableOpacity style={styles.rowCard} onPress={() => openWorkLogModal(item)} activeOpacity={0.8}>
-                  <Text
-                    style={[styles.rowWatermark, index % 2 === 0 ? styles.watermarkBlue : styles.watermarkGreen]}
+              renderItem={({ item, index }) => {
+                const dept = getEmployeeDepartmentInProject(item, selectedEmployee?.quickEmployeeId);
+                return (
+                  <TouchableOpacity
+                    style={styles.rowCard}
+                    onPress={() => openWorkLogModal({ project: item, employee: selectedEmployee })}
+                    activeOpacity={0.8}
                   >
-                    PROJECT
-                  </Text>
-                  <View style={styles.iconWrap}>
-                    <Briefcase color={COLORS.warning} size={16} />
-                  </View>
-                  <View style={styles.rowTextWrap}>
-                    <Text style={styles.rowTitle}>{item.name}</Text>
-                    <Text style={styles.rowSubtitle}>Tap to continue</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
+                    <Text style={[styles.rowWatermark, index % 2 === 0 ? styles.watermarkBlue : styles.watermarkGreen]}>PROJECT</Text>
+                    <View style={styles.iconWrap}>
+                      <Briefcase color={COLORS.warning} size={16} />
+                    </View>
+                    <View style={styles.rowTextWrap}>
+                      <Text style={styles.rowTitle}>{item.name}</Text>
+                      <Text style={styles.rowSubtitle}>Project No: {item.projectNo || '-'} • Dept: {dept?.name || 'No Department'}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
               ListEmptyComponent={
                 <Text style={styles.emptyText}>
                   {projectSearchQuery.trim() ? 'No projects found' : 'No assigned projects for this employee'}
+                </Text>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={showProjectEmployeeModal}
+        animationType="fade"
+        onRequestClose={() => setShowProjectEmployeeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Employee</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowProjectEmployeeModal(false)}>
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubtitle}>{selectedProject?.name || '-'} • {selectedProject?.projectNo || '-'}</Text>
+
+            {projectFirstDepartmentOptions.length > 0 ? (
+              <FlatList
+                horizontal
+                data={[{ id: DEPT_ALL, name: 'All Departments' }, ...projectFirstDepartmentOptions]}
+                keyExtractor={item => item.id}
+                contentContainerStyle={styles.chipsRow}
+                showsHorizontalScrollIndicator={false}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.chip, projectFirstDepartmentFilter === item.id && styles.chipActive]}
+                    onPress={() => setProjectFirstDepartmentFilter(item.id)}
+                  >
+                    <Text style={[styles.chipText, projectFirstDepartmentFilter === item.id && styles.chipTextActive]}>
+                      {item.name}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
+            ) : null}
+
+            <View style={[styles.searchBox, styles.modalSearch]}>
+              <Search color={COLORS.gray} size={18} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search employee..."
+                placeholderTextColor={COLORS.gray}
+                value={projectFirstEmployeeSearch}
+                onChangeText={setProjectFirstEmployeeSearch}
+              />
+            </View>
+
+            <FlatList
+              data={filteredProjectFirstEmployees}
+              keyExtractor={item => item.quickEmployeeId}
+              renderItem={renderProjectFirstEmployeeRow}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>
+                  {projectFirstEmployeeSearch.trim() ? 'No employees found' : 'No employees in this filter'}
                 </Text>
               }
             />
@@ -312,10 +667,17 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Add Work Log</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Work Log</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowWorkLogModal(false)}>
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
             <Text style={styles.modalSubtitle}>
               {selectedEmployee?.name || ''} • {selectedProject?.name || ''}
             </Text>
+            <Text style={styles.modalSubtitle}>Project No: {selectedProject?.projectNo || '-'}</Text>
+            <Text style={styles.modalSubtitle}>Department: {selectedProjectDepartment?.name || 'No Department'}</Text>
 
             <TouchableOpacity style={styles.selectButton} onPress={() => setShowDatePicker(true)}>
               <View style={styles.selectLeft}>
@@ -327,8 +689,8 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
 
             <Text style={styles.modeLabel}>Choose how to add work log</Text>
             <View style={styles.presetRow}>
-              <TouchableOpacity style={styles.presetButton} onPress={() => applyPreset('full')}>
-                <Text style={styles.presetButtonText}>09:00-18:00</Text>
+              <TouchableOpacity style={styles.presetButton} onPress={() => applyPreset('today_full')}>
+                <Text style={styles.presetButtonText}>Today + Full</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.presetButton} onPress={() => applyPreset('half')}>
                 <Text style={styles.presetButtonText}>Half Day</Text>
@@ -400,7 +762,7 @@ const QuickAddWorkLogScreen = ({ navigation }) => {
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowWorkLogModal(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={saveWorkLog}>
+              <TouchableOpacity style={styles.saveBtn} onPress={() => saveWorkLog(false)}>
                 <Text style={styles.saveBtnText}>Save</Text>
               </TouchableOpacity>
             </View>
@@ -461,6 +823,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
   headerSpacer: { width: 24 },
   content: { flex: 1, padding: 16 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
   infoCard: {
     borderRadius: 14,
     backgroundColor: '#ECFDF5',
@@ -471,6 +835,31 @@ const styles = StyleSheet.create({
   },
   infoTitle: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
   infoSubtitle: { marginTop: 4, color: COLORS.textLight, fontSize: 12, lineHeight: 18 },
+  recentBtn: {
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  recentBtnText: { color: '#1D4ED8', fontSize: 12, fontWeight: '700' },
+  tabRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  tabBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabBtnActive: { borderColor: '#93C5FD', backgroundColor: '#EFF6FF' },
+  tabBtnText: { color: COLORS.textLight, fontSize: 12, fontWeight: '700' },
+  tabBtnTextActive: { color: '#1D4ED8' },
   searchBox: {
     height: 44,
     borderRadius: 12,
@@ -531,10 +920,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
-  modalCard: { width: '100%', maxHeight: '80%', backgroundColor: COLORS.white, borderRadius: 14, padding: 16 },
+  modalCard: { width: '100%', maxHeight: '82%', backgroundColor: COLORS.white, borderRadius: 14, padding: 16 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modalCloseBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 6 },
-  modalSubtitle: { color: COLORS.textLight, fontSize: 12, marginBottom: 10 },
+  modalSubtitle: { color: COLORS.textLight, fontSize: 12, marginBottom: 8 },
   modalSearch: { marginBottom: 10 },
+  chipsRow: { paddingBottom: 8 },
+  chip: {
+    height: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  chipActive: { borderColor: '#93C5FD', backgroundColor: '#EFF6FF' },
+  chipText: { color: COLORS.textLight, fontSize: 12, fontWeight: '700' },
+  chipTextActive: { color: '#1D4ED8' },
   selectButton: {
     height: 44,
     borderWidth: 1,
@@ -550,11 +956,7 @@ const styles = StyleSheet.create({
   selectText: { color: COLORS.text, fontSize: 14, marginLeft: 8 },
   selectHint: { color: COLORS.primary, fontSize: 13, fontWeight: '600' },
   modeLabel: { marginBottom: 10, color: COLORS.text, fontSize: 13, fontWeight: '600' },
-  presetRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
-  },
+  presetRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   presetButton: {
     flex: 1,
     height: 34,
@@ -565,11 +967,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  presetButtonText: {
-    color: '#1D4ED8',
-    fontSize: 12,
-    fontWeight: '700',
-  },
+  presetButtonText: { color: '#1D4ED8', fontSize: 12, fontWeight: '700' },
   radioRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   radioOuter: {
     width: 18,

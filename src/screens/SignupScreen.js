@@ -11,7 +11,7 @@ import {
   ScrollView,
   Modal,
 } from 'react-native';
-import { Building2, User, Mail, Phone, Lock, UserPlus, Eye, EyeOff, Award, ChevronDown } from 'lucide-react-native';
+import { Building2, User, Mail, Phone, Lock, UserPlus, Eye, EyeOff, Award, ChevronDown, X } from 'lucide-react-native';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { COLORS } from '../constants/colors';
@@ -346,7 +346,18 @@ const SignupScreen = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Your Role</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Your Role</Text>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => {
+                  setShowDesignationDropdown(false);
+                  setShowDesignationModal(false);
+                }}
+              >
+                <X color={COLORS.textLight} size={20} />
+              </TouchableOpacity>
+            </View>
 
             <Text style={styles.modalLabel}>Choose from options</Text>
             <TouchableOpacity
@@ -576,6 +587,18 @@ const styles = StyleSheet.create({
     padding: 24,
     width: '100%',
     maxWidth: 400,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalTitle: {
     fontSize: 20,
