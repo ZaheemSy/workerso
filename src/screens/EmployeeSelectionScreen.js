@@ -93,7 +93,16 @@ const EmployeeSelectionScreen = ({ navigation, route }) => {
   };
 
   const handleEmployeeSelect = (employee) => {
-    // Navigate to report options screen
+    if (reportType === 'worklogs-employee') {
+      navigation.navigate('ReportPreview', {
+        reportType,
+        reportOption: 'combined',
+        employee,
+      });
+      return;
+    }
+
+    // Keep current flow for attendance reports
     navigation.navigate('ReportOptions', {
       reportType,
       employee,

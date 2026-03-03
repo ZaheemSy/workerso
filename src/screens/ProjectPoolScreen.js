@@ -8,6 +8,9 @@ import {
   TextInput,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
 } from 'react-native';
 import { ArrowLeft, Plus, Briefcase, CheckSquare, Square, ChevronDown, Search, Pencil, Trash2, X } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
@@ -384,143 +387,161 @@ const ProjectPoolScreen = ({ navigation }) => {
         />
       </View>
 
-      <Modal transparent visible={showEditor} animationType="fade" onRequestClose={closeCreateModal}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Project</Text>
-              <TouchableOpacity style={styles.modalCloseBtn} onPress={closeCreateModal}>
-                <X color={COLORS.textLight} size={18} />
-              </TouchableOpacity>
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Project name"
-              placeholderTextColor={COLORS.gray}
-              value={projectName}
-              onChangeText={setProjectName}
-            />
-            <TextInput
-              style={[styles.input, styles.mt10]}
-              placeholder="Project no."
-              placeholderTextColor={COLORS.gray}
-              value={projectNo}
-              onChangeText={setProjectNo}
-            />
+      <Modal
+        transparent
+        visible={showEditor}
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeCreateModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalKeyboardWrapper}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, styles.editorModalCard]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Create Project</Text>
+                <TouchableOpacity style={styles.modalCloseBtn} onPress={closeCreateModal}>
+                  <X color={COLORS.textLight} size={18} />
+                </TouchableOpacity>
+              </View>
 
-            {canManageQuickProject ? (
-              <>
-                <View style={styles.departmentsHeader}>
-                  <Text style={styles.sectionLabel}>Departments (Optional)</Text>
-                  <TouchableOpacity style={styles.addDepartmentBtn} onPress={() => setShowDepartmentModal(true)}>
-                    <Text style={styles.addDepartmentBtnText}>Add Department</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {projectDepartments.length > 0 ? (
-                  <View style={styles.departmentList}>
-                    {projectDepartments.map(item => (
-                      <View key={item.quickDepartmentId} style={styles.departmentChip}>
-                        <Text style={styles.departmentChipText}>{item.name}</Text>
-                        <TouchableOpacity onPress={() => removeDepartmentFromDraft(item.quickDepartmentId)}>
-                          <Trash2 color={COLORS.danger} size={14} />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Text style={styles.departmentHintText}>No departments added</Text>
-                )}
-              </>
-            ) : null}
-
-            <Text style={styles.sectionLabel}>Add Employees</Text>
-            <View style={styles.modeSwitch}>
-              <TouchableOpacity
-                style={[styles.modeButton, employeeMode === 'pool' && styles.modeButtonActive]}
-                onPress={() => setEmployeeMode('pool')}
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.modalScrollContent}
               >
-                <Text style={[styles.modeButtonText, employeeMode === 'pool' && styles.modeButtonTextActive]}>
-                  Employees from pool
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modeButton, employeeMode === 'new' && styles.modeButtonActive]}
-                onPress={() => setEmployeeMode('new')}
-              >
-                <Text style={[styles.modeButtonText, employeeMode === 'new' && styles.modeButtonTextActive]}>
-                  New employee
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {employeeMode === 'pool' ? (
-              <TouchableOpacity style={styles.selectBtn} onPress={() => setShowEmployeePicker(true)}>
-                <Text style={[styles.selectText, selectedEmployeeIds.length === 0 && styles.placeholder]}>
-                  {selectedEmployeeIds.length > 0
-                    ? `${selectedEmployeeIds.length} employee(s) selected`
-                    : 'Select employee(s)'}
-                </Text>
-                <ChevronDown color={COLORS.gray} size={16} />
-              </TouchableOpacity>
-            ) : (
-              <View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Project name"
+                  placeholderTextColor={COLORS.gray}
+                  value={projectName}
+                  onChangeText={setProjectName}
+                />
                 <TextInput
                   style={[styles.input, styles.mt10]}
-                  placeholder="Employee name"
+                  placeholder="Project no."
                   placeholderTextColor={COLORS.gray}
-                  value={newEmployeeName}
-                  onChangeText={setNewEmployeeName}
+                  value={projectNo}
+                  onChangeText={setProjectNo}
                 />
-                <Text style={styles.sectionLabel}>Designation</Text>
+
+                {canManageQuickProject ? (
+                  <>
+                    <View style={styles.departmentsHeader}>
+                      <Text style={styles.sectionLabel}>Departments (Optional)</Text>
+                      <TouchableOpacity style={styles.addDepartmentBtn} onPress={() => setShowDepartmentModal(true)}>
+                        <Text style={styles.addDepartmentBtnText}>Add Department</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {projectDepartments.length > 0 ? (
+                      <View style={styles.departmentList}>
+                        {projectDepartments.map(item => (
+                          <View key={item.quickDepartmentId} style={styles.departmentChip}>
+                            <Text style={styles.departmentChipText}>{item.name}</Text>
+                            <TouchableOpacity onPress={() => removeDepartmentFromDraft(item.quickDepartmentId)}>
+                              <Trash2 color={COLORS.danger} size={14} />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      </View>
+                    ) : (
+                      <Text style={styles.departmentHintText}>No departments added</Text>
+                    )}
+                  </>
+                ) : null}
+
+                <Text style={styles.sectionLabel}>Add Employees</Text>
                 <View style={styles.modeSwitch}>
                   <TouchableOpacity
-                    style={[styles.modeButton, designationMode === 'pool' && styles.modeButtonActive]}
-                    onPress={() => setDesignationMode('pool')}
+                    style={[styles.modeButton, employeeMode === 'pool' && styles.modeButtonActive]}
+                    onPress={() => setEmployeeMode('pool')}
                   >
-                    <Text style={[styles.modeButtonText, designationMode === 'pool' && styles.modeButtonTextActive]}>
-                      Select from pool
+                    <Text style={[styles.modeButtonText, employeeMode === 'pool' && styles.modeButtonTextActive]}>
+                      Employees from pool
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.modeButton, designationMode === 'new' && styles.modeButtonActive]}
-                    onPress={() => setDesignationMode('new')}
+                    style={[styles.modeButton, employeeMode === 'new' && styles.modeButtonActive]}
+                    onPress={() => setEmployeeMode('new')}
                   >
-                    <Text style={[styles.modeButtonText, designationMode === 'new' && styles.modeButtonTextActive]}>
-                      Add directly
+                    <Text style={[styles.modeButtonText, employeeMode === 'new' && styles.modeButtonTextActive]}>
+                      New employee
                     </Text>
                   </TouchableOpacity>
                 </View>
 
-                {designationMode === 'pool' ? (
-                  <TouchableOpacity style={styles.selectBtn} onPress={() => setShowDesignationPicker(true)}>
-                    <Text style={[styles.selectText, !selectedDesignationId && styles.placeholder]}>
-                      {selectedDesignationId ? designationMap[selectedDesignationId] : 'Select designation'}
+                {employeeMode === 'pool' ? (
+                  <TouchableOpacity style={styles.selectBtn} onPress={() => setShowEmployeePicker(true)}>
+                    <Text style={[styles.selectText, selectedEmployeeIds.length === 0 && styles.placeholder]}>
+                      {selectedEmployeeIds.length > 0
+                        ? `${selectedEmployeeIds.length} employee(s) selected`
+                        : 'Select employee(s)'}
                     </Text>
                     <ChevronDown color={COLORS.gray} size={16} />
                   </TouchableOpacity>
                 ) : (
-                  <TextInput
-                    style={[styles.input, styles.mt10]}
-                    placeholder="Designation name"
-                    placeholderTextColor={COLORS.gray}
-                    value={newDesignationName}
-                    onChangeText={setNewDesignationName}
-                  />
-                )}
-              </View>
-            )}
+                  <View>
+                    <TextInput
+                      style={[styles.input, styles.mt10]}
+                      placeholder="Employee name"
+                      placeholderTextColor={COLORS.gray}
+                      value={newEmployeeName}
+                      onChangeText={setNewEmployeeName}
+                    />
+                    <Text style={styles.sectionLabel}>Designation</Text>
+                    <View style={styles.modeSwitch}>
+                      <TouchableOpacity
+                        style={[styles.modeButton, designationMode === 'pool' && styles.modeButtonActive]}
+                        onPress={() => setDesignationMode('pool')}
+                      >
+                        <Text style={[styles.modeButtonText, designationMode === 'pool' && styles.modeButtonTextActive]}>
+                          Select from pool
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.modeButton, designationMode === 'new' && styles.modeButtonActive]}
+                        onPress={() => setDesignationMode('new')}
+                      >
+                        <Text style={[styles.modeButtonText, designationMode === 'new' && styles.modeButtonTextActive]}>
+                          Add directly
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={closeCreateModal}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={saveProject}>
-                <Text style={styles.saveBtnText}>Create</Text>
-              </TouchableOpacity>
+                    {designationMode === 'pool' ? (
+                      <TouchableOpacity style={styles.selectBtn} onPress={() => setShowDesignationPicker(true)}>
+                        <Text style={[styles.selectText, !selectedDesignationId && styles.placeholder]}>
+                          {selectedDesignationId ? designationMap[selectedDesignationId] : 'Select designation'}
+                        </Text>
+                        <ChevronDown color={COLORS.gray} size={16} />
+                      </TouchableOpacity>
+                    ) : (
+                      <TextInput
+                        style={[styles.input, styles.mt10]}
+                        placeholder="Designation name"
+                        placeholderTextColor={COLORS.gray}
+                        value={newDesignationName}
+                        onChangeText={setNewDesignationName}
+                      />
+                    )}
+                  </View>
+                )}
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity style={styles.cancelBtn} onPress={closeCreateModal}>
+                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.saveBtn} onPress={saveProject}>
+                    <Text style={styles.saveBtnText}>Create</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -570,48 +591,54 @@ const ProjectPoolScreen = ({ navigation }) => {
         transparent
         visible={showDepartmentModal}
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => {
           setDepartmentNameInput('');
           setShowDepartmentModal(false);
         }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Department</Text>
-              <TouchableOpacity
-                style={styles.modalCloseBtn}
-                onPress={() => {
-                  setDepartmentNameInput('');
-                  setShowDepartmentModal(false);
-                }}
-              >
-                <X color={COLORS.textLight} size={18} />
-              </TouchableOpacity>
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Department name"
-              placeholderTextColor={COLORS.gray}
-              value={departmentNameInput}
-              onChangeText={setDepartmentNameInput}
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => {
-                  setDepartmentNameInput('');
-                  setShowDepartmentModal(false);
-                }}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={addDepartmentToDraft}>
-                <Text style={styles.saveBtnText}>Add</Text>
-              </TouchableOpacity>
+        <KeyboardAvoidingView
+          style={styles.modalKeyboardWrapper}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add Department</Text>
+                <TouchableOpacity
+                  style={styles.modalCloseBtn}
+                  onPress={() => {
+                    setDepartmentNameInput('');
+                    setShowDepartmentModal(false);
+                  }}
+                >
+                  <X color={COLORS.textLight} size={18} />
+                </TouchableOpacity>
+              </View>
+              <TextInput
+                style={styles.input}
+                placeholder="Department name"
+                placeholderTextColor={COLORS.gray}
+                value={departmentNameInput}
+                onChangeText={setDepartmentNameInput}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => {
+                    setDepartmentNameInput('');
+                    setShowDepartmentModal(false);
+                  }}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveBtn} onPress={addDepartmentToDraft}>
+                  <Text style={styles.saveBtnText}>Add</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -659,10 +686,15 @@ const ProjectPoolScreen = ({ navigation }) => {
         transparent
         visible={showProjectRenameModal}
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setShowProjectRenameModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+        <KeyboardAvoidingView
+          style={styles.modalKeyboardWrapper}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Project</Text>
               <TouchableOpacity
@@ -755,8 +787,9 @@ const ProjectPoolScreen = ({ navigation }) => {
                 <Text style={styles.saveBtnText}>Update</Text>
               </TouchableOpacity>
             </View>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -876,7 +909,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
-  modalCard: { width: '100%', maxHeight: '75%', backgroundColor: COLORS.white, borderRadius: 14, padding: 16 },
+  modalKeyboardWrapper: { flex: 1 },
+  modalCard: {
+    width: '100%',
+    maxHeight: '75%',
+    backgroundColor: COLORS.white,
+    borderRadius: 14,
+    padding: 16,
+    overflow: 'hidden',
+  },
+  editorModalCard: {
+    maxHeight: '86%',
+  },
+  modalScrollContent: {
+    paddingBottom: 4,
+  },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modalCloseBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
@@ -886,6 +933,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 44,
+    backgroundColor: COLORS.white,
     color: COLORS.text,
   },
   mt10: { marginTop: 10 },

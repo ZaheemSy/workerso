@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Platform,
   Modal,
   TextInput,
-  PermissionsAndroid,
 } from 'react-native';
 import {
   X,
@@ -18,7 +16,8 @@ import {
   FileSpreadsheet,
   FileText,
   Search,
-  Filter,
+  ArrowUpAZ,
+  ArrowDownAZ,
 } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
@@ -31,570 +30,713 @@ import {
 } from '../services/storageService';
 import RNFS from 'react-native-fs';
 import * as XLSX from 'xlsx';
-import DateTimePicker from '@react-native-community/datetimepicker';
+
+const MAX_PDF_LINE_LENGTH = 95;
 
 const ReportPreviewScreen = ({ navigation, route }) => {
-  const { reportType, reportOption, employee, project } = route.params;
+  const { reportType, reportOption = 'combined', employee, project } = route.params;
   const { session } = useAuth();
+
   const [reportData, setReportData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [downloading, setDownloading] = useState(false);
-  const [showFormatModal, setShowFormatModal] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
-  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [sortOrder, setSortOrder] = useState('asc');
 
-  // Filter states
-  const [filterEmployee, setFilterEmployee] = useState(null);
-  const [filterFromDate, setFilterFromDate] = useState(null);
-  const [filterToDate, setFilterToDate] = useState(new Date());
-  const [showFromDatePicker, setShowFromDatePicker] = useState(false);
-  const [showToDatePicker, setShowToDatePicker] = useState(false);
-  const [showEmployeeSelectModal, setShowEmployeeSelectModal] = useState(false);
-  const [allEmployees, setAllEmployees] = useState([]);
+  const isWorkLogReport = reportType?.startsWith('worklogs-');
+  const isProjectWiseWorklog = reportType === 'worklogs-project';
+  const isEmployeeWiseWorklog = reportType === 'worklogs-employee';
 
-  useEffect(() => {
-    loadReportData();
-  }, []);
+  const sanitizeText = value => {
+    if (value === null || value === undefined) return '';
+    return String(value).replace(/[^\x20-\x7E]/g, ' ').replace(/\s+/g, ' ').trim();
+  };
 
-  useEffect(() => {
-    filterData();
-  }, [searchQuery, reportData, filterEmployee, filterFromDate, filterToDate]);
+  const sanitizeFileNamePart = value => {
+    const text = sanitizeText(value || 'report');
+    return text.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '') || 'report';
+  };
 
-  const loadReportData = async () => {
-    try {
-      setLoading(true);
-      let data = [];
+  const parseHoursValue = value => {
+    if (typeof value === 'number' && !Number.isNaN(value)) {
+      return value;
+    }
 
-      if (reportType === 'worklogs-employee') {
-        data = await generateWorkLogsByEmployee();
-      } else if (reportType === 'worklogs-project') {
-        data = await generateWorkLogsByProject();
-      } else if (reportType === 'attendance-employee') {
-        data = await generateAttendanceByEmployee();
-      } else if (reportType === 'attendance-project') {
-        data = await generateAttendanceByProject();
+    if (typeof value === 'string') {
+      const normalized = value.toLowerCase().replace('hrs', '').replace('hr', '').trim();
+      const parsed = parseFloat(normalized);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
       }
-
-      setReportData(data);
-      setFilteredData(data);
-
-      // Load all employees for filtering
-      const users = await getUsersByOrg(session.orgId);
-      setAllEmployees(users);
-    } catch (error) {
-      console.error('Error loading report data:', error);
-      Alert.alert('Error', 'Failed to load report data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filterData = () => {
-    let filtered = [...reportData];
-
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(row => {
-        return Object.values(row).some(value =>
-          String(value).toLowerCase().includes(query)
-        );
-      });
     }
 
-    // Apply employee filter
-    if (filterEmployee) {
-      filtered = filtered.filter(row => {
-        const employeeName = row['Employee Name'] || '';
-        return employeeName === filterEmployee.name;
-      });
+    return 0;
+  };
+
+  const formatHours = value => `${parseHoursValue(value).toFixed(2)} hrs`;
+
+  const formatDateLabel = value => {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+    });
+  };
+
+  const applyWorklogOptionFilter = useCallback(logs => {
+    if (reportOption === 'self-logged') {
+      return logs.filter(log => log.userId === log.loggedBy);
     }
 
-    // Apply date range filter
-    if (filterFromDate || filterToDate) {
-      filtered = filtered.filter(row => {
-        const rowDate = row['Date'];
-        if (!rowDate || rowDate === '-') return false;
-
-        const date = new Date(rowDate);
-        if (isNaN(date.getTime())) return false;
-
-        if (filterFromDate) {
-          const fromDate = new Date(filterFromDate);
-          fromDate.setHours(0, 0, 0, 0);
-          if (date < fromDate) return false;
-        }
-
-        if (filterToDate) {
-          const toDate = new Date(filterToDate);
-          toDate.setHours(23, 59, 59, 999);
-          if (date > toDate) return false;
-        }
-
-        return true;
-      });
+    if (reportOption === 'admin-logged') {
+      return logs.filter(log => log.userId !== log.loggedBy);
     }
 
-    setFilteredData(filtered);
-  };
+    return logs;
+  }, [reportOption]);
 
-  const clearAllFilters = () => {
-    setSearchQuery('');
-    setFilterEmployee(null);
-    setFilterFromDate(null);
-    setFilterToDate(new Date());
-  };
+  const generateWorkLogsByEmployee = useCallback(async () => {
+    const [allWorkLogs, users, projects] = await Promise.all([
+      getWorkLogsByOrg(session.orgId),
+      getUsersByOrg(session.orgId),
+      getProjectsByOrg(session.orgId),
+    ]);
 
-  const getActiveFilterCount = () => {
-    let count = 0;
-    if (searchQuery.trim()) count++;
-    if (filterEmployee) count++;
-    if (filterFromDate) count++;
-    // Only count toDate if it's different from today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const toDate = new Date(filterToDate);
-    toDate.setHours(0, 0, 0, 0);
-    if (toDate.getTime() !== today.getTime()) count++;
-    return count;
-  };
-
-  const generateWorkLogsByEmployee = async () => {
-    const allWorkLogs = await getWorkLogsByOrg(session.orgId);
-    const users = await getUsersByOrg(session.orgId);
-    const data = [];
-
-    // Apply role-based filtering
-    let targetEmployee = employee;
-    let workLogs = allWorkLogs;
+    let workLogs = [...allWorkLogs];
 
     if (employee) {
-      // Filter for specific employee
       workLogs = workLogs.filter(log => log.userId === employee.userId);
-    } else {
-      // If no employee specified, show all (admin can only see their team)
-      if (session.role === ROLES.ADMIN) {
-        const teamMembers = users.filter(u => u.adminId === session.userId);
-        const teamMemberIds = teamMembers.map(m => m.userId);
-        workLogs = workLogs.filter(log => teamMemberIds.includes(log.userId));
-      }
+    } else if (session.role === ROLES.ADMIN) {
+      const teamMembers = users.filter(u => u.adminId === session.userId);
+      const teamMemberIds = teamMembers.map(m => m.userId);
+      workLogs = workLogs.filter(log => teamMemberIds.includes(log.userId));
     }
 
-    // Apply report option filtering
-    if (reportOption === 'self-logged') {
-      workLogs = workLogs.filter(log => log.userId === log.loggedBy);
-    } else if (reportOption === 'admin-logged') {
-      workLogs = workLogs.filter(log => log.userId !== log.loggedBy);
-    }
+    workLogs = applyWorklogOptionFilter(workLogs);
 
-    // Build data rows
-    for (const log of workLogs) {
+    return workLogs.map(log => {
       const user = users.find(u => u.userId === log.userId);
       const loggedByUser = users.find(u => u.userId === log.loggedBy);
+      const proj = projects.find(p => p.projectId === log.projectId);
+      const hours = log.hours ?? log.totalHours ?? 0;
 
-      const row = {
+      return {
         'Employee Name': user?.name || 'Unknown',
-        'Date': log.date || '-',
-        'Project': log.projectName || 'N/A',
-        'Hours Worked': log.hours || log.totalHours || '-',
-        'Break Duration': log.breakDuration ? `${log.breakDuration} min` : '-',
-        'Description': log.description || '-',
+        'Project Name': proj?.projectName || log.projectName || 'Unknown',
+        Date: formatDateLabel(log.date),
+        'Hours Worked': parseHoursValue(hours).toFixed(2),
+        Description: log.description || '-',
+        ...(reportOption === 'combined' ? { 'Logged By': loggedByUser?.name || 'Unknown' } : {}),
+        __groupKey: proj?.projectName || log.projectName || 'Unknown',
+        __groupType: 'project',
+        __dateSort: log.date || log.createdAt || '',
+        __hoursValue: parseHoursValue(hours),
       };
+    });
+  }, [applyWorklogOptionFilter, employee, reportOption, session.orgId, session.role, session.userId]);
 
-      if (reportOption === 'combined') {
-        row['Logged By'] = loggedByUser?.name || 'Unknown';
-      }
+  const generateWorkLogsByProject = useCallback(async () => {
+    const [allWorkLogs, users, projects] = await Promise.all([
+      getWorkLogsByOrg(session.orgId),
+      getUsersByOrg(session.orgId),
+      getProjectsByOrg(session.orgId),
+    ]);
 
-      data.push(row);
-    }
+    let workLogs = [...allWorkLogs];
 
-    return data;
-  };
-
-  const generateWorkLogsByProject = async () => {
-    const allWorkLogs = await getWorkLogsByOrg(session.orgId);
-    const users = await getUsersByOrg(session.orgId);
-    const projects = await getProjectsByOrg(session.orgId);
-    const data = [];
-
-    let workLogs = allWorkLogs;
-
-    // Filter by project if specified
     if (project) {
       workLogs = workLogs.filter(log => log.projectId === project.projectId);
-    } else {
-      // Admin can only see projects they manage
-      if (session.role === ROLES.ADMIN) {
-        const adminProjects = projects.filter(
-          p => p.managerId === session.userId || (p.admins && p.admins.includes(session.userId))
-        );
-        const projectIds = adminProjects.map(p => p.projectId);
-        workLogs = workLogs.filter(log => projectIds.includes(log.projectId));
-      }
+    } else if (session.role === ROLES.ADMIN) {
+      const adminProjects = projects.filter(
+        p => p.managerId === session.userId || (p.admins && p.admins.includes(session.userId))
+      );
+      const projectIds = adminProjects.map(p => p.projectId);
+      workLogs = workLogs.filter(log => projectIds.includes(log.projectId));
     }
 
-    // Apply report option filtering
-    if (reportOption === 'self-logged') {
-      workLogs = workLogs.filter(log => log.userId === log.loggedBy);
-    } else if (reportOption === 'admin-logged') {
-      workLogs = workLogs.filter(log => log.userId !== log.loggedBy);
-    }
+    workLogs = applyWorklogOptionFilter(workLogs);
 
-    // Build data rows
-    for (const log of workLogs) {
+    return workLogs.map(log => {
       const proj = projects.find(p => p.projectId === log.projectId);
       const user = users.find(u => u.userId === log.userId);
       const loggedByUser = users.find(u => u.userId === log.loggedBy);
+      const hours = log.hours ?? log.totalHours ?? 0;
 
-      const row = {
-        'Project Name': proj?.projectName || 'Unknown',
+      return {
+        'Project Name': proj?.projectName || log.projectName || 'Unknown',
         'Employee Name': user?.name || 'Unknown',
-        'Date': log.date || '-',
-        'Hours Worked': log.hours || log.totalHours || '-',
-        'Break Duration': log.breakDuration ? `${log.breakDuration} min` : '-',
-        'Description': log.description || '-',
+        Date: formatDateLabel(log.date),
+        'Hours Worked': parseHoursValue(hours).toFixed(2),
+        Description: log.description || '-',
+        ...(reportOption === 'combined' ? { 'Logged By': loggedByUser?.name || 'Unknown' } : {}),
+        __groupKey: user?.name || 'Unknown',
+        __groupType: 'employee',
+        __dateSort: log.date || log.createdAt || '',
+        __hoursValue: parseHoursValue(hours),
       };
+    });
+  }, [applyWorklogOptionFilter, project, reportOption, session.orgId, session.role, session.userId]);
 
-      if (reportOption === 'combined') {
-        row['Logged By'] = loggedByUser?.name || 'Unknown';
-      }
+  const generateAttendanceByEmployee = useCallback(async () => {
+    const [attendanceRecords, users] = await Promise.all([
+      getAttendanceByOrg(session.orgId),
+      getUsersByOrg(session.orgId),
+    ]);
 
-      data.push(row);
-    }
+    let records = [...attendanceRecords];
 
-    return data;
-  };
-
-  const generateAttendanceByEmployee = async () => {
-    const attendanceRecords = await getAttendanceByOrg(session.orgId);
-    const users = await getUsersByOrg(session.orgId);
-    const data = [];
-
-    let records = attendanceRecords;
-
-    // Filter by employee if specified
     if (employee) {
       records = records.filter(record => record.userId === employee.userId);
-    } else {
-      // Admin can only see their team
-      if (session.role === ROLES.ADMIN) {
-        const teamMembers = users.filter(u => u.adminId === session.userId);
-        const teamMemberIds = teamMembers.map(m => m.userId);
-        records = records.filter(record => teamMemberIds.includes(record.userId));
-      }
+    } else if (session.role === ROLES.ADMIN) {
+      const teamMembers = users.filter(u => u.adminId === session.userId);
+      const teamMemberIds = teamMembers.map(m => m.userId);
+      records = records.filter(record => teamMemberIds.includes(record.userId));
     }
 
-    // Build data rows
-    for (const record of records) {
+    return records.map(record => {
       const user = users.find(u => u.userId === record.userId);
-      const clockIn = record.clockInTime
-        ? new Date(record.clockInTime).toLocaleString()
-        : '-';
-      const clockOut = record.clockOutTime
-        ? new Date(record.clockOutTime).toLocaleString()
-        : '-';
+      const clockIn = record.clockInTime ? new Date(record.clockInTime).toLocaleString() : '-';
+      const clockOut = record.clockOutTime ? new Date(record.clockOutTime).toLocaleString() : '-';
 
       let totalHours = '-';
       if (record.clockInTime && record.clockOutTime) {
         const diff = new Date(record.clockOutTime) - new Date(record.clockInTime);
-        totalHours = (diff / (1000 * 60 * 60)).toFixed(2) + ' hrs';
+        totalHours = `${(diff / (1000 * 60 * 60)).toFixed(2)} hrs`;
       }
 
-      data.push({
+      return {
         'Employee Name': user?.name || 'Unknown',
-        'Date': record.date || '-',
+        Date: formatDateLabel(record.date),
         'Clock In': clockIn,
         'Clock Out': clockOut,
         'Total Hours': totalHours,
-        'Status': record.type || 'Regular',
-      });
-    }
+        Status: record.type || 'Regular',
+      };
+    });
+  }, [employee, session.orgId, session.role, session.userId]);
 
-    return data;
-  };
+  const generateAttendanceByProject = useCallback(async () => {
+    const [attendanceRecords, users, projects] = await Promise.all([
+      getAttendanceByOrg(session.orgId),
+      getUsersByOrg(session.orgId),
+      getProjectsByOrg(session.orgId),
+    ]);
 
-  const generateAttendanceByProject = async () => {
-    const attendanceRecords = await getAttendanceByOrg(session.orgId);
-    const users = await getUsersByOrg(session.orgId);
-    const projects = await getProjectsByOrg(session.orgId);
-    const data = [];
+    let records = [...attendanceRecords];
 
-    let records = attendanceRecords;
-
-    // Filter by project if specified
     if (project) {
       records = records.filter(record => record.projectId === project.projectId);
-    } else {
-      // Admin can only see their projects
-      if (session.role === ROLES.ADMIN) {
-        const adminProjects = projects.filter(
-          p => p.managerId === session.userId || (p.admins && p.admins.includes(session.userId))
-        );
-        const projectIds = adminProjects.map(p => p.projectId);
-        records = records.filter(record => projectIds.includes(record.projectId));
-      }
+    } else if (session.role === ROLES.ADMIN) {
+      const adminProjects = projects.filter(
+        p => p.managerId === session.userId || (p.admins && p.admins.includes(session.userId))
+      );
+      const projectIds = adminProjects.map(p => p.projectId);
+      records = records.filter(record => projectIds.includes(record.projectId));
     }
 
-    // Build data rows
-    for (const record of records) {
+    return records.map(record => {
       const proj = projects.find(p => p.projectId === record.projectId);
       const user = users.find(u => u.userId === record.userId);
-      const clockIn = record.clockInTime
-        ? new Date(record.clockInTime).toLocaleString()
-        : '-';
-      const clockOut = record.clockOutTime
-        ? new Date(record.clockOutTime).toLocaleString()
-        : '-';
+      const clockIn = record.clockInTime ? new Date(record.clockInTime).toLocaleString() : '-';
+      const clockOut = record.clockOutTime ? new Date(record.clockOutTime).toLocaleString() : '-';
 
       let totalHours = '-';
       if (record.clockInTime && record.clockOutTime) {
         const diff = new Date(record.clockOutTime) - new Date(record.clockInTime);
-        totalHours = (diff / (1000 * 60 * 60)).toFixed(2) + ' hrs';
+        totalHours = `${(diff / (1000 * 60 * 60)).toFixed(2)} hrs`;
       }
 
-      data.push({
+      return {
         'Project Name': proj?.projectName || 'Unknown',
         'Employee Name': user?.name || 'Unknown',
-        'Date': record.date || '-',
+        Date: formatDateLabel(record.date),
         'Clock In': clockIn,
         'Clock Out': clockOut,
         'Total Hours': totalHours,
-      });
+      };
+    });
+  }, [project, session.orgId, session.role, session.userId]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        let data = [];
+
+        if (reportType === 'worklogs-employee') {
+          data = await generateWorkLogsByEmployee();
+        } else if (reportType === 'worklogs-project') {
+          data = await generateWorkLogsByProject();
+        } else if (reportType === 'attendance-employee') {
+          data = await generateAttendanceByEmployee();
+        } else if (reportType === 'attendance-project') {
+          data = await generateAttendanceByProject();
+        }
+
+        setReportData(data);
+        setFilteredData(data);
+      } catch (error) {
+        console.error('Error loading report data:', error);
+        Alert.alert('Error', 'Failed to load report data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [
+    generateAttendanceByEmployee,
+    generateAttendanceByProject,
+    generateWorkLogsByEmployee,
+    generateWorkLogsByProject,
+    reportType,
+  ]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredData(reportData);
+      return;
     }
 
-    return data;
+    const query = searchQuery.toLowerCase();
+    const filtered = reportData.filter(row =>
+      Object.values(row).some(value => String(value).toLowerCase().includes(query))
+    );
+    setFilteredData(filtered);
+  }, [reportData, searchQuery]);
+
+  const groupedSections = useMemo(() => {
+    if (!isWorkLogReport) return [];
+
+    const grouped = filteredData.reduce((acc, row) => {
+      const key = row.__groupKey || 'Unknown';
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(row);
+      return acc;
+    }, {});
+
+    const orderedKeys = Object.keys(grouped).sort((a, b) =>
+      sortOrder === 'asc' ? a.localeCompare(b) : b.localeCompare(a)
+    );
+
+    return orderedKeys.map(key => {
+      const rows = [...grouped[key]].sort((a, b) => {
+        const first = new Date(a.__dateSort || 0).getTime() || 0;
+        const second = new Date(b.__dateSort || 0).getTime() || 0;
+        return first - second;
+      });
+
+      const totalHours = rows.reduce((sum, row) => sum + (row.__hoursValue || 0), 0);
+
+      return {
+        key,
+        rows,
+        totalHours,
+      };
+    });
+  }, [filteredData, isWorkLogReport, sortOrder]);
+
+  const totalWorkHours = useMemo(() => {
+    if (!isWorkLogReport) return 0;
+    return groupedSections.reduce((sum, section) => sum + section.totalHours, 0);
+  }, [groupedSections, isWorkLogReport]);
+
+  const getReportTitle = () => {
+    if (employee) {
+      return `${employee.name} - Work Log Report`;
+    }
+
+    if (project) {
+      return `${project.projectName} - Work Log Report`;
+    }
+
+    if (reportType === 'worklogs-project') {
+      return 'Project-wise Work Log Report';
+    }
+
+    if (reportType === 'worklogs-employee') {
+      return 'Employee-wise Work Log Report';
+    }
+
+    if (reportType === 'attendance-project') {
+      return 'Attendance by Project';
+    }
+
+    return 'Attendance by Employee';
   };
 
-  const handleDownload = () => {
+  const getGroupTitle = () => {
+    if (isProjectWiseWorklog) return 'Employee';
+    if (isEmployeeWiseWorklog) return 'Project';
+    return 'Group';
+  };
+
+  const getExportBaseName = () => {
+    const context = employee?.name || project?.projectName || 'all';
+    const mode = isProjectWiseWorklog
+      ? 'project_wise'
+      : isEmployeeWiseWorklog
+      ? 'employee_wise'
+      : reportType;
+    return `${sanitizeFileNamePart(context)}_${sanitizeFileNamePart(mode)}_${Date.now()}`;
+  };
+
+  const getDownloadDirectory = async () => RNFS.DocumentDirectoryPath;
+
+  const stripInternalFields = row => {
+    const cleaned = {};
+    Object.keys(row).forEach(key => {
+      if (!key.startsWith('__')) {
+        cleaned[key] = row[key];
+      }
+    });
+    return cleaned;
+  };
+
+  const createExcelFile = async () => {
+    const workbook = XLSX.utils.book_new();
+
+    if (isWorkLogReport && groupedSections.length > 0) {
+      const summaryRows = [
+        {
+          'Report Title': getReportTitle(),
+          'Grouped By': getGroupTitle(),
+          'Total Groups': groupedSections.length,
+          'Total Records': filteredData.length,
+          'Total Work Hours': totalWorkHours.toFixed(2),
+        },
+      ];
+
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.json_to_sheet(summaryRows),
+        'Summary'
+      );
+
+      groupedSections.forEach((section, index) => {
+        const rows = section.rows.map(row => {
+          const cleaned = stripInternalFields(row);
+          return {
+            Date: cleaned.Date,
+            'Hours Worked': cleaned['Hours Worked'],
+            Description: cleaned.Description,
+            ...(cleaned['Logged By'] ? { 'Logged By': cleaned['Logged By'] } : {}),
+          };
+        });
+
+        rows.push({
+          Date: 'Total',
+          'Hours Worked': section.totalHours.toFixed(2),
+          Description: '',
+        });
+
+        const sheetName = `${index + 1}_${sanitizeFileNamePart(section.key).slice(0, 24)}`;
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), sheetName);
+      });
+    } else {
+      const rows = filteredData.map(stripInternalFields);
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), 'Report');
+    }
+
+    const base64 = XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' });
+    const filename = `${getExportBaseName()}.xlsx`;
+    const directory = await getDownloadDirectory();
+    const filePath = `${directory}/${filename}`;
+    await RNFS.writeFile(filePath, base64, 'base64');
+    return filePath;
+  };
+
+  const escapePdfText = value =>
+    sanitizeText(value)
+      .replace(/\\/g, '\\\\')
+      .replace(/\(/g, '\\(')
+      .replace(/\)/g, '\\)');
+
+  const chunkText = (value, maxLength = MAX_PDF_LINE_LENGTH) => {
+    const normalized = sanitizeText(value);
+    if (!normalized) return [''];
+
+    const words = normalized.split(' ');
+    const lines = [];
+    let current = '';
+
+    words.forEach(word => {
+      if (!current) {
+        current = word;
+        return;
+      }
+
+      if ((`${current} ${word}`).length <= maxLength) {
+        current = `${current} ${word}`;
+      } else {
+        lines.push(current);
+        current = word;
+      }
+    });
+
+    if (current) {
+      lines.push(current);
+    }
+
+    return lines;
+  };
+
+  const buildPdfPages = () => {
+    if (isWorkLogReport && groupedSections.length > 0) {
+      const pages = [];
+
+      pages.push([
+        getReportTitle(),
+        `Grouped by: ${getGroupTitle()}`,
+        `Total groups: ${groupedSections.length}`,
+        `Total records: ${filteredData.length}`,
+        `Total work hours: ${totalWorkHours.toFixed(2)} hrs`,
+      ]);
+
+      groupedSections.forEach((section, index) => {
+        const lines = [
+          `${getGroupTitle()} ${index + 1}: ${section.key}`,
+          `Records: ${section.rows.length}`,
+          '',
+          'Date | Hours | Description',
+          '------------------------------------------------------------',
+        ];
+
+        section.rows.forEach(row => {
+          const dateText = row.Date || '-';
+          const hoursText = `${parseHoursValue(row['Hours Worked']).toFixed(2)}h`;
+          const descriptionText = row.Description || '-';
+          const line = `${dateText} | ${hoursText} | ${descriptionText}`;
+          chunkText(line).forEach(ch => lines.push(ch));
+        });
+
+        lines.push('------------------------------------------------------------');
+        lines.push(`Section Total: ${section.totalHours.toFixed(2)} hrs`);
+
+        pages.push(lines);
+      });
+
+      return pages;
+    }
+
+    const cleanRows = filteredData.map(stripInternalFields);
+    const headers = cleanRows.length > 0 ? Object.keys(cleanRows[0]) : [];
+    const rowsPerPage = 30;
+    const pages = [];
+
+    for (let i = 0; i < cleanRows.length; i += rowsPerPage) {
+      const chunkRows = cleanRows.slice(i, i + rowsPerPage);
+      const lines = [getReportTitle(), '', headers.join(' | ')];
+      lines.push('------------------------------------------------------------');
+
+      chunkRows.forEach(row => {
+        const line = headers.map(key => sanitizeText(row[key])).join(' | ');
+        chunkText(line).forEach(ch => lines.push(ch));
+      });
+
+      pages.push(lines);
+    }
+
+    return pages.length > 0 ? pages : [[getReportTitle(), 'No data']];
+  };
+
+  const buildSimplePdfDocument = pages => {
+    const pageWidth = 595;
+    const pageHeight = 842;
+    const top = 800;
+    const left = 40;
+    const lineHeight = 14;
+
+    const pageCount = pages.length;
+    const firstPageId = 3;
+    const firstContentId = firstPageId + pageCount;
+    const fontId = firstContentId + pageCount;
+    const lastId = fontId;
+
+    const objects = new Array(lastId + 1).fill('');
+
+    objects[1] = `1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj`;
+
+    const kids = [];
+    for (let i = 0; i < pageCount; i += 1) {
+      const pageId = firstPageId + i;
+      kids.push(`${pageId} 0 R`);
+    }
+
+    objects[2] = `2 0 obj\n<< /Type /Pages /Kids [ ${kids.join(' ')} ] /Count ${pageCount} >>\nendobj`;
+
+    for (let i = 0; i < pageCount; i += 1) {
+      const pageId = firstPageId + i;
+      const contentId = firstContentId + i;
+      const lines = pages[i];
+
+      let stream = 'BT\n/F1 10 Tf\n';
+      stream += `${left} ${top} Td\n`;
+
+      lines.forEach((line, lineIndex) => {
+        if (lineIndex > 0) {
+          stream += `0 -${lineHeight} Td\n`;
+        }
+        stream += `(${escapePdfText(line)}) Tj\n`;
+      });
+
+      stream += 'ET';
+
+      objects[contentId] = `${contentId} 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj`;
+
+      objects[pageId] = `${pageId} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontId} 0 R >> >> >>\nendobj`;
+    }
+
+    objects[fontId] = `${fontId} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj`;
+
+    let pdf = '%PDF-1.4\n';
+    const offsets = [0];
+
+    for (let id = 1; id <= lastId; id += 1) {
+      offsets[id] = pdf.length;
+      pdf += `${objects[id]}\n`;
+    }
+
+    const xrefOffset = pdf.length;
+    pdf += `xref\n0 ${lastId + 1}\n`;
+    pdf += '0000000000 65535 f \n';
+
+    for (let id = 1; id <= lastId; id += 1) {
+      const offsetValue = String(offsets[id]).padStart(10, '0');
+      pdf += `${offsetValue} 00000 n \n`;
+    }
+
+    pdf += `trailer\n<< /Size ${lastId + 1} /Root 1 0 R >>\n`;
+    pdf += `startxref\n${xrefOffset}\n%%EOF`;
+
+    return pdf;
+  };
+
+  const createPdfFile = async () => {
+    const pages = buildPdfPages();
+    const pdfContent = buildSimplePdfDocument(pages);
+    const filename = `${getExportBaseName()}.pdf`;
+    const directory = await getDownloadDirectory();
+    const filePath = `${directory}/${filename}`;
+    await RNFS.writeFile(filePath, pdfContent, 'ascii');
+    return filePath;
+  };
+
+  const handleExport = async format => {
     if (filteredData.length === 0) {
       Alert.alert('No Data', 'There is no data to export');
       return;
     }
-    setShowFormatModal(true);
-  };
 
-  const requestStoragePermission = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-          {
-            title: 'Storage Permission',
-            message: 'App needs access to storage to save files',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
-        return granted === PermissionsAndroid.RESULTS.GRANTED;
-      } catch (err) {
-        console.warn(err);
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const handleDownloadExcel = async () => {
-    setShowFormatModal(false);
+    setShowExportModal(false);
 
     try {
-      setDownloading(true);
+      setProcessing(true);
+      let path = '';
+      let label = '';
 
-      const hasPermission = await requestStoragePermission();
-      if (!hasPermission) {
-        Alert.alert('Permission Denied', 'Storage permission is required to save files');
-        return;
-      }
-
-      // Convert to array of arrays for Excel
-      const headers = Object.keys(filteredData[0]);
-      const excelData = [headers];
-
-      filteredData.forEach(row => {
-        const rowData = headers.map(header => row[header]);
-        excelData.push(rowData);
-      });
-
-      // Generate filename
-      let filename = 'Report';
-      if (employee) {
-        filename = `${employee.name.replace(/ /g, '_')}_${reportType}`;
-      } else if (project) {
-        filename = `${project.projectName.replace(/ /g, '_')}_${reportType}`;
+      if (format === 'excel') {
+        path = await createExcelFile();
+        label = 'Excel';
       } else {
-        filename = reportType;
+        path = await createPdfFile();
+        label = 'PDF';
       }
-      filename += `_${reportOption}_${Date.now()}`;
 
-      // Create Excel file
-      const ws = XLSX.utils.aoa_to_sheet(excelData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Report');
-      const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-
-      // Save file
-      const downloadsPath = Platform.OS === 'android'
-        ? RNFS.DownloadDirectoryPath
-        : RNFS.DocumentDirectoryPath;
-      const path = `${downloadsPath}/${filename}.xlsx`;
-
-      await RNFS.writeFile(path, wbout, 'base64');
-
-      Alert.alert(
-        'Success',
-        `Report saved to:\n${path}`,
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Download Complete', `${label} report saved to:\n${path}`);
     } catch (error) {
       console.error('Export error:', error);
       Alert.alert('Error', `Failed to export report: ${error.message}`);
     } finally {
-      setDownloading(false);
+      setProcessing(false);
     }
   };
 
-  const handleDownloadPDF = async () => {
-    setShowFormatModal(false);
-
-    try {
-      setDownloading(true);
-
-      const hasPermission = await requestStoragePermission();
-      if (!hasPermission) {
-        Alert.alert('Permission Denied', 'Storage permission is required to save files');
-        return;
-      }
-
-      // Generate filename
-      let filename = 'Report';
-      if (employee) {
-        filename = `${employee.name.replace(/ /g, '_')}_${reportType}`;
-      } else if (project) {
-        filename = `${project.projectName.replace(/ /g, '_')}_${reportType}`;
-      } else {
-        filename = reportType;
-      }
-      filename += `_${reportOption}_${Date.now()}`;
-
-      // Generate HTML table
-      const headers = Object.keys(filteredData[0]);
-      let htmlContent = `
-        <html>
-          <head>
-            <style>
-              body { font-family: Arial, sans-serif; padding: 20px; }
-              h1 { color: #333; text-align: center; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th { background-color: #4F46E5; color: white; padding: 12px; text-align: left; font-weight: 600; }
-              td { padding: 10px; border-bottom: 1px solid #ddd; }
-              tr:nth-child(even) { background-color: #f9f9f9; }
-            </style>
-          </head>
-          <body>
-            <h1>${getReportTitle()}</h1>
-            <p style="text-align: center; color: #666;">
-              ${filteredData.length} record${filteredData.length !== 1 ? 's' : ''} •
-              ${reportOption === 'self-logged' ? 'Self-Logged' : reportOption === 'admin-logged' ? 'Admin-Logged' : 'Combined'}
-            </p>
-            <table>
-              <thead>
-                <tr>
-                  ${headers.map(header => `<th>${header}</th>`).join('')}
-                </tr>
-              </thead>
-              <tbody>
-                ${filteredData.map(row => `
-                  <tr>
-                    ${headers.map(header => `<td>${row[header]}</td>`).join('')}
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </body>
-        </html>
-      `;
-
-      // Save HTML as PDF-ready file
-      const downloadsPath = Platform.OS === 'android'
-        ? RNFS.DownloadDirectoryPath
-        : RNFS.DocumentDirectoryPath;
-      const htmlPath = `${downloadsPath}/${filename}.html`;
-
-      await RNFS.writeFile(htmlPath, htmlContent, 'utf8');
-
-      Alert.alert(
-        'Success',
-        `Report saved to:\n${htmlPath}\n\nYou can open this file in a browser and print to PDF.`,
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      console.error('Export error:', error);
-      Alert.alert('Error', `Failed to export report: ${error.message}`);
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  const getReportTitle = () => {
-    if (employee) {
-      return `${employee.name}'s ${reportType.includes('worklog') ? 'Work Logs' : 'Attendance'}`;
-    } else if (project) {
-      return `${project.projectName} - ${reportType.includes('worklog') ? 'Work Logs' : 'Attendance'}`;
-    }
-    return 'Report Preview';
-  };
-
-  const renderTableHeader = () => {
+  const renderStandardTable = () => {
     if (filteredData.length === 0) return null;
-    const headers = Object.keys(filteredData[0]);
+
+    const headers = Object.keys(stripInternalFields(filteredData[0]));
 
     return (
-      <View style={styles.tableHeader}>
-        {headers.map((header, index) => (
-          <View key={index} style={styles.tableHeaderCell}>
-            <Text style={styles.tableHeaderText}>{header}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tableScrollHorizontal}>
+        <ScrollView style={styles.tableScrollVertical} showsVerticalScrollIndicator={false}>
+          <View style={styles.tableHeader}>
+            {headers.map(header => (
+              <View key={header} style={styles.tableHeaderCell}>
+                <Text style={styles.tableHeaderText}>{header}</Text>
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
+
+          {filteredData.map((row, index) => {
+            const cleaned = stripInternalFields(row);
+            return (
+              <View key={`${index}_${cleaned.Date || ''}`} style={[styles.tableRow, index % 2 === 0 && styles.tableRowEven]}>
+                {headers.map(header => (
+                  <View key={header} style={styles.tableCell}>
+                    <Text style={styles.tableCellText}>{String(cleaned[header] ?? '-')}</Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })}
+        </ScrollView>
+      </ScrollView>
     );
   };
 
-  const renderTableRow = (row, index) => {
-    const values = Object.values(row);
-
-    return (
-      <View
-        key={index}
-        style={[styles.tableRow, index % 2 === 0 && styles.tableRowEven]}
-      >
-        {values.map((value, cellIndex) => (
-          <View key={cellIndex} style={styles.tableCell}>
-            <Text style={styles.tableCellText}>{value}</Text>
+  const renderGroupedWorklog = () => (
+    <ScrollView style={styles.groupedList} contentContainerStyle={styles.groupedListContent} showsVerticalScrollIndicator={false}>
+      {groupedSections.map((section, index) => (
+        <View key={`${section.key}_${index}`} style={styles.groupCard}>
+          <View style={styles.groupCardHeader}>
+            <Text style={styles.groupTitle}>{getGroupTitle()}: {section.key}</Text>
+            <Text style={styles.groupCount}>{section.rows.length} record{section.rows.length !== 1 ? 's' : ''}</Text>
           </View>
-        ))}
-      </View>
-    );
-  };
+
+          <View style={styles.groupTableHeader}>
+            <Text style={[styles.groupTableHeaderText, styles.colDate]}>Date</Text>
+            <Text style={[styles.groupTableHeaderText, styles.colHours]}>Hours</Text>
+            <Text style={[styles.groupTableHeaderText, styles.colDescription]}>Description</Text>
+          </View>
+
+          {section.rows.map((row, rowIndex) => (
+            <View key={`${section.key}_${rowIndex}`} style={[styles.groupTableRow, rowIndex % 2 === 0 && styles.groupTableRowEven]}>
+              <Text style={[styles.groupTableCellText, styles.colDate]}>{row.Date || '-'}</Text>
+              <Text style={[styles.groupTableCellText, styles.colHours]}>{formatHours(row['Hours Worked'])}</Text>
+              <Text style={[styles.groupTableCellText, styles.colDescription]}>{row.Description || '-'}</Text>
+            </View>
+          ))}
+
+          <View style={styles.groupTotalRow}>
+            <Text style={styles.groupTotalLabel}>Total for {section.key}</Text>
+            <Text style={styles.groupTotalValue}>{section.totalHours.toFixed(2)} hrs</Text>
+          </View>
+        </View>
+      ))}
+    </ScrollView>
+  );
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.headerButton}
-        >
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
           <X color={COLORS.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>Preview</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Report Preview</Text>
         <TouchableOpacity
-          onPress={handleDownload}
+          onPress={() => setShowExportModal(true)}
           style={styles.downloadButton}
-          disabled={downloading || loading}
+          disabled={processing || loading}
         >
-          <Download color={downloading ? COLORS.gray : COLORS.primary} size={24} />
+          <Download color={processing ? COLORS.gray : COLORS.primary} size={22} />
         </TouchableOpacity>
       </View>
 
@@ -607,9 +749,7 @@ const ReportPreviewScreen = ({ navigation, route }) => {
         <View style={styles.emptyContainer}>
           <FileSpreadsheet color={COLORS.gray} size={64} />
           <Text style={styles.emptyTitle}>No Data Available</Text>
-          <Text style={styles.emptyText}>
-            There are no records matching your criteria
-          </Text>
+          <Text style={styles.emptyText}>No records match this report selection.</Text>
         </View>
       ) : (
         <View style={styles.content}>
@@ -618,347 +758,100 @@ const ReportPreviewScreen = ({ navigation, route }) => {
             <View style={styles.infoTextContainer}>
               <Text style={styles.infoTitle}>{getReportTitle()}</Text>
               <Text style={styles.infoSubtitle}>
-                {filteredData.length} of {reportData.length} record{reportData.length !== 1 ? 's' : ''} • {reportOption === 'self-logged' ? 'Self-Logged' : reportOption === 'admin-logged' ? 'Admin-Logged' : 'Combined'}
+                {filteredData.length} of {reportData.length} record{reportData.length !== 1 ? 's' : ''}
+                {isWorkLogReport ? ` • Total: ${totalWorkHours.toFixed(2)} hrs` : ''}
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={() => setShowSearch(!showSearch)}
-              style={styles.searchIconButton}
-            >
-              <Search color={COLORS.primary} size={20} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setShowFilterModal(true)}
-              style={styles.filterIconButton}
-            >
-              <Filter color={getActiveFilterCount() > 0 ? COLORS.success : COLORS.primary} size={20} />
-              {getActiveFilterCount() > 0 && (
-                <View style={styles.filterBadge}>
-                  <Text style={styles.filterBadgeText}>{getActiveFilterCount()}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
           </View>
 
-          {showSearch && (
-            <View style={styles.searchContainer}>
-              <Search color={COLORS.gray} size={18} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search in table..."
-                placeholderTextColor={COLORS.gray}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <X color={COLORS.gray} size={18} />
-                </TouchableOpacity>
-              )}
+          <View style={styles.searchContainer}>
+            <Search color={COLORS.gray} size={18} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search records..."
+              placeholderTextColor={COLORS.gray}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+
+          {isWorkLogReport && (
+            <View style={styles.sortContainer}>
+              <Text style={styles.sortLabel}>Sort {getGroupTitle()}:</Text>
+              <TouchableOpacity
+                style={[styles.sortButton, sortOrder === 'asc' && styles.sortButtonActive]}
+                onPress={() => setSortOrder('asc')}
+              >
+                <ArrowUpAZ color={sortOrder === 'asc' ? COLORS.white : COLORS.primary} size={16} />
+                <Text style={[styles.sortButtonText, sortOrder === 'asc' && styles.sortButtonTextActive]}>A-Z</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sortButton, sortOrder === 'desc' && styles.sortButtonActive]}
+                onPress={() => setSortOrder('desc')}
+              >
+                <ArrowDownAZ color={sortOrder === 'desc' ? COLORS.white : COLORS.primary} size={16} />
+                <Text style={[styles.sortButtonText, sortOrder === 'desc' && styles.sortButtonTextActive]}>Z-A</Text>
+              </TouchableOpacity>
             </View>
           )}
 
           {filteredData.length === 0 ? (
             <View style={styles.noResultsContainer}>
-              <Search color={COLORS.gray} size={48} />
-              <Text style={styles.noResultsText}>No matching records found</Text>
-              <TouchableOpacity
-                style={styles.clearSearchButton}
-                onPress={() => setSearchQuery('')}
-              >
-                <Text style={styles.clearSearchButtonText}>Clear Search</Text>
-              </TouchableOpacity>
+              <Search color={COLORS.gray} size={56} />
+              <Text style={styles.noResultsTitle}>No matching records</Text>
+              <Text style={styles.noResultsText}>Try another search term.</Text>
             </View>
+          ) : isWorkLogReport ? (
+            <>
+              <View style={styles.overallTotalCard}>
+                <Text style={styles.overallTotalLabel}>Overall Total Work Hours</Text>
+                <Text style={styles.overallTotalValue}>{totalWorkHours.toFixed(2)} hrs</Text>
+              </View>
+              {renderGroupedWorklog()}
+            </>
           ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.tableScrollHorizontal}
-            >
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                style={styles.tableScrollVertical}
-              >
-                {renderTableHeader()}
-                {filteredData.map((row, index) => renderTableRow(row, index))}
-              </ScrollView>
-            </ScrollView>
+            renderStandardTable()
           )}
         </View>
       )}
 
-      {/* Format Selection Modal */}
       <Modal
-        visible={showFormatModal}
+        visible={showExportModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowFormatModal(false)}
+        onRequestClose={() => setShowExportModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.formatModalContent}>
-            <View style={styles.formatModalHeader}>
-              <Text style={styles.formatModalTitle}>Choose Download Format</Text>
-              <TouchableOpacity onPress={() => setShowFormatModal(false)}>
-                <X color={COLORS.text} size={24} />
+          <View style={styles.exportModal}>
+            <View style={styles.exportHeader}>
+              <Text style={styles.exportTitle}>Export or Share</Text>
+              <TouchableOpacity onPress={() => setShowExportModal(false)}>
+                <X color={COLORS.text} size={22} />
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={styles.formatOption}
-              onPress={handleDownloadExcel}
-              disabled={downloading}
-            >
-              <View style={styles.formatIconContainer}>
-                <FileSpreadsheet color={COLORS.success} size={32} />
-              </View>
-              <View style={styles.formatTextContainer}>
-                <Text style={styles.formatOptionTitle}>Download as Excel</Text>
-                <Text style={styles.formatOptionDesc}>
-                  Best for data analysis and spreadsheets (.xlsx)
-                </Text>
+            <TouchableOpacity style={styles.exportOption} onPress={() => handleExport('excel')}>
+              <FileSpreadsheet color={COLORS.success} size={26} />
+              <View style={styles.exportOptionTextWrap}>
+                <Text style={styles.exportOptionTitle}>Excel</Text>
+                <Text style={styles.exportOptionSubtitle}>Download .xlsx file</Text>
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.formatOption}
-              onPress={handleDownloadPDF}
-              disabled={downloading}
-            >
-              <View style={styles.formatIconContainer}>
-                <FileText color={COLORS.danger} size={32} />
-              </View>
-              <View style={styles.formatTextContainer}>
-                <Text style={styles.formatOptionTitle}>Download as PDF (HTML)</Text>
-                <Text style={styles.formatOptionDesc}>
-                  Best for printing and sharing (.html - print to PDF)
-                </Text>
+            <TouchableOpacity style={styles.exportOption} onPress={() => handleExport('pdf')}>
+              <FileText color={COLORS.danger} size={26} />
+              <View style={styles.exportOptionTextWrap}>
+                <Text style={styles.exportOptionTitle}>PDF</Text>
+                <Text style={styles.exportOptionSubtitle}>Download .pdf file</Text>
               </View>
             </TouchableOpacity>
 
-            {downloading && (
-              <View style={styles.downloadingIndicator}>
+            {processing && (
+              <View style={styles.processingRow}>
                 <ActivityIndicator size="small" color={COLORS.primary} />
-                <Text style={styles.downloadingText}>Preparing file...</Text>
+                <Text style={styles.processingText}>Preparing report file...</Text>
               </View>
             )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Filter Modal */}
-      <Modal
-        visible={showFilterModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowFilterModal(false)}
-      >
-        <View style={styles.filterModalOverlay}>
-          <View style={styles.filterModalContent}>
-            <View style={styles.filterModalHeader}>
-              <Text style={styles.filterModalTitle}>Advanced Filters</Text>
-              <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-                <X color={COLORS.text} size={24} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.filterScrollView}>
-              {/* Employee Filter */}
-              <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>Employee</Text>
-                <TouchableOpacity
-                  style={styles.employeeSelectButton}
-                  onPress={() => setShowEmployeeSelectModal(true)}
-                >
-                  <Text style={[
-                    styles.employeeSelectText,
-                    !filterEmployee && styles.employeeSelectPlaceholder
-                  ]}>
-                    {filterEmployee ? filterEmployee.name : 'Select employee...'}
-                  </Text>
-                  {filterEmployee && (
-                    <TouchableOpacity
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        setFilterEmployee(null);
-                      }}
-                      style={styles.clearEmployeeButton}
-                    >
-                      <X color={COLORS.gray} size={18} />
-                    </TouchableOpacity>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {/* Date Range Filter */}
-              <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>Date Range</Text>
-
-                {/* Date Row */}
-                <View style={styles.dateRow}>
-                  {/* From Date */}
-                  <TouchableOpacity
-                    style={styles.datePickerButtonHalf}
-                    onPress={() => setShowFromDatePicker(true)}
-                  >
-                    <Text style={styles.datePickerLabelSmall}>From</Text>
-                    <Text style={styles.datePickerValueSmall}>
-                      {filterFromDate
-                        ? new Date(filterFromDate).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                          })
-                        : 'Start date'}
-                    </Text>
-                    {filterFromDate && (
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          setFilterFromDate(null);
-                        }}
-                        style={styles.clearDateButtonSmall}
-                      >
-                        <X color={COLORS.gray} size={14} />
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-
-                  {/* To Date */}
-                  <TouchableOpacity
-                    style={styles.datePickerButtonHalf}
-                    onPress={() => setShowToDatePicker(true)}
-                  >
-                    <Text style={styles.datePickerLabelSmall}>To</Text>
-                    <Text style={styles.datePickerValueSmall}>
-                      {new Date(filterToDate).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Active Filters Summary */}
-              {getActiveFilterCount() > 0 && (
-                <View style={styles.activeFiltersSummary}>
-                  <Text style={styles.activeFiltersText}>
-                    {getActiveFilterCount()} filter{getActiveFilterCount() !== 1 ? 's' : ''} active
-                  </Text>
-                  <TouchableOpacity onPress={clearAllFilters} style={styles.clearAllButton}>
-                    <Text style={styles.clearAllButtonText}>Clear All</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </ScrollView>
-
-            {/* Action Buttons */}
-            <View style={styles.filterModalActions}>
-              <TouchableOpacity
-                style={styles.filterCancelButton}
-                onPress={() => setShowFilterModal(false)}
-              >
-                <Text style={styles.filterCancelButtonText}>Close</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.filterApplyButton}
-                onPress={() => setShowFilterModal(false)}
-              >
-                <Text style={styles.filterApplyButtonText}>
-                  Apply Filters ({filteredData.length})
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Date Pickers */}
-      {showFromDatePicker && (
-        <DateTimePicker
-          value={filterFromDate || new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) => {
-            setShowFromDatePicker(false);
-            if (selectedDate) {
-              setFilterFromDate(selectedDate);
-            }
-          }}
-        />
-      )}
-
-      {showToDatePicker && (
-        <DateTimePicker
-          value={filterToDate || new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) => {
-            setShowToDatePicker(false);
-            if (selectedDate) {
-              setFilterToDate(selectedDate);
-            }
-          }}
-        />
-      )}
-
-      {/* Employee Selection Modal */}
-      <Modal
-        visible={showEmployeeSelectModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowEmployeeSelectModal(false)}
-      >
-        <View style={styles.filterModalOverlay}>
-          <View style={styles.filterModalContent}>
-            <View style={styles.filterModalHeader}>
-              <Text style={styles.filterModalTitle}>Select Employee</Text>
-              <TouchableOpacity onPress={() => setShowEmployeeSelectModal(false)}>
-                <X color={COLORS.text} size={24} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.employeeListScroll}>
-              {allEmployees.length === 0 ? (
-                <View style={styles.emptyEmployeeList}>
-                  <Text style={styles.emptyEmployeeText}>No employees available</Text>
-                </View>
-              ) : (
-                allEmployees.map((emp) => (
-                  <TouchableOpacity
-                    key={emp.userId}
-                    style={[
-                      styles.employeeItem,
-                      filterEmployee?.userId === emp.userId && styles.employeeItemSelected,
-                    ]}
-                    onPress={() => {
-                      setFilterEmployee(emp);
-                      setShowEmployeeSelectModal(false);
-                    }}
-                  >
-                    <View style={styles.employeeInfo}>
-                      <Text style={styles.employeeName}>{emp.name}</Text>
-                      {emp.designation && (
-                        <Text style={styles.employeeDesignation}>{emp.designation}</Text>
-                      )}
-                    </View>
-                    {filterEmployee?.userId === emp.userId && (
-                      <View style={styles.selectedCheckmark}>
-                        <Text style={styles.checkmarkText}>✓</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))
-              )}
-            </ScrollView>
-
-            <View style={styles.filterModalActions}>
-              <TouchableOpacity
-                style={styles.filterCancelButton}
-                onPress={() => setShowEmployeeSelectModal(false)}
-              >
-                <Text style={styles.filterCancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>
@@ -986,11 +879,11 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 8,
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.text,
-    textAlign: 'center',
-    marginHorizontal: 8,
   },
   downloadButton: {
     padding: 8,
@@ -1013,15 +906,15 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.text,
     marginTop: 16,
   },
   emptyText: {
     fontSize: 14,
     color: COLORS.textLight,
+    marginTop: 6,
     textAlign: 'center',
-    marginTop: 8,
   },
   content: {
     flex: 1,
@@ -1030,65 +923,227 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.primary + '10',
-    padding: 16,
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 12,
+    margin: 16,
+    marginBottom: 10,
+    padding: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.primary + '30',
+    borderColor: COLORS.primary + '25',
   },
   infoTextContainer: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
   },
   infoTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.text,
-    marginBottom: 2,
   },
   infoSubtitle: {
+    marginTop: 2,
     fontSize: 12,
     color: COLORS.textLight,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  sortContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    gap: 10,
+  },
+  sortLabel: {
+    fontSize: 13,
+    color: COLORS.textLight,
+    fontWeight: '600',
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: COLORS.white,
+  },
+  sortButtonActive: {
+    backgroundColor: COLORS.primary,
+  },
+  sortButtonText: {
+    color: COLORS.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sortButtonTextActive: {
+    color: COLORS.white,
+  },
+  overallTotalCard: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    backgroundColor: COLORS.success + '15',
+    borderWidth: 1,
+    borderColor: COLORS.success + '35',
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  overallTotalLabel: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: '600',
+  },
+  overallTotalValue: {
+    fontSize: 16,
+    color: COLORS.success,
+    fontWeight: '800',
+  },
+  groupedList: {
+    flex: 1,
+  },
+  groupedListContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  groupCard: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  groupCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: COLORS.extraLightGray,
+  },
+  groupTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginRight: 8,
+  },
+  groupCount: {
+    fontSize: 12,
+    color: COLORS.textLight,
+    fontWeight: '600',
+  },
+  groupTableHeader: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.primary,
+  },
+  groupTableHeaderText: {
+    fontSize: 12,
+    color: COLORS.white,
+    fontWeight: '700',
+  },
+  groupTableRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  groupTableRowEven: {
+    backgroundColor: COLORS.background,
+  },
+  groupTableCellText: {
+    fontSize: 12,
+    color: COLORS.text,
+  },
+  colDate: {
+    width: 95,
+  },
+  colHours: {
+    width: 85,
+  },
+  colDescription: {
+    flex: 1,
+  },
+  groupTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: COLORS.primary + '10',
+  },
+  groupTotalLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  groupTotalValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.primary,
   },
   tableScrollHorizontal: {
     flex: 1,
   },
   tableScrollVertical: {
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 20,
   },
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: COLORS.primary,
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
   },
   tableHeaderCell: {
-    minWidth: 120,
+    minWidth: 130,
     paddingHorizontal: 8,
   },
   tableHeaderText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
     color: COLORS.white,
+    fontWeight: '700',
   },
   tableRow: {
     flexDirection: 'row',
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
   },
   tableRowEven: {
     backgroundColor: COLORS.background,
   },
   tableCell: {
-    minWidth: 120,
+    minWidth: 130,
     paddingHorizontal: 8,
     justifyContent: 'center',
   },
@@ -1096,392 +1151,79 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.text,
   },
-  searchIconButton: {
-    padding: 8,
-    marginLeft: 8,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: COLORS.text,
-    paddingVertical: 0,
-  },
   noResultsContainer: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  noResultsTitle: {
+    marginTop: 12,
+    fontSize: 17,
+    color: COLORS.text,
+    fontWeight: '700',
   },
   noResultsText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginTop: 16,
-    marginBottom: 16,
-  },
-  clearSearchButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  clearSearchButtonText: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: '600',
+    marginTop: 4,
+    fontSize: 13,
+    color: COLORS.textLight,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
   },
-  formatModalContent: {
+  exportModal: {
     backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
+    borderRadius: 14,
+    padding: 16,
   },
-  formatModalHeader: {
+  exportHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 10,
   },
-  formatModalTitle: {
+  exportTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.text,
   },
-  formatOption: {
+  exportOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 10,
+    marginTop: 10,
+    gap: 12,
   },
-  formatIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: COLORS.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  formatTextContainer: {
+  exportOptionTextWrap: {
     flex: 1,
   },
-  formatOptionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+  exportOptionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
     color: COLORS.text,
-    marginBottom: 4,
   },
-  formatOptionDesc: {
+  exportOptionSubtitle: {
+    marginTop: 2,
     fontSize: 12,
     color: COLORS.textLight,
   },
-  downloadingIndicator: {
+  processingRow: {
+    marginTop: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
-    gap: 12,
+    gap: 10,
   },
-  downloadingText: {
-    fontSize: 14,
-    color: COLORS.textLight,
-  },
-  filterIconButton: {
-    padding: 8,
-    marginLeft: 8,
-    position: 'relative',
-  },
-  filterBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: COLORS.success,
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  filterBadgeText: {
-    color: COLORS.white,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  filterModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  filterModalContent: {
-    backgroundColor: COLORS.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '80%',
-    paddingBottom: 20,
-  },
-  filterModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  filterModalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  filterScrollView: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-  },
-  filterSection: {
-    marginBottom: 24,
-  },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 8,
-  },
-  filterInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 8,
-  },
-  filterInput: {
-    flex: 1,
-    fontSize: 15,
-    color: COLORS.text,
-    paddingVertical: 0,
-  },
-  datePickerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginTop: 8,
-  },
-  datePickerLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textLight,
-    marginRight: 12,
-  },
-  datePickerValue: {
-    flex: 1,
-    fontSize: 15,
-    color: COLORS.text,
-  },
-  clearDateButton: {
-    padding: 4,
-  },
-  activeFiltersSummary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.primary + '15',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 8,
-  },
-  activeFiltersText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  clearAllButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: COLORS.white,
-    borderRadius: 8,
-  },
-  clearAllButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  filterModalActions: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  filterCancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
-  },
-  filterCancelButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  filterApplyButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-  },
-  filterApplyButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.white,
-  },
-  employeeSelectButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.background,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  employeeSelectText: {
-    flex: 1,
-    fontSize: 15,
-    color: COLORS.text,
-  },
-  employeeSelectPlaceholder: {
-    color: COLORS.gray,
-  },
-  clearEmployeeButton: {
-    padding: 4,
-    marginLeft: 8,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  datePickerButtonHalf: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    position: 'relative',
-  },
-  datePickerLabelSmall: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: COLORS.textLight,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  datePickerValueSmall: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: COLORS.text,
-  },
-  clearDateButtonSmall: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    padding: 2,
-  },
-  employeeListScroll: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    maxHeight: 400,
-  },
-  emptyEmployeeList: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  emptyEmployeeText: {
-    fontSize: 14,
-    color: COLORS.textLight,
-  },
-  employeeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.background,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  employeeItemSelected: {
-    backgroundColor: COLORS.primary + '15',
-    borderColor: COLORS.primary,
-  },
-  employeeInfo: {
-    flex: 1,
-  },
-  employeeName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 2,
-  },
-  employeeDesignation: {
+  processingText: {
     fontSize: 13,
     color: COLORS.textLight,
-  },
-  selectedCheckmark: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12,
-  },
-  checkmarkText: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: '700',
   },
 });
 

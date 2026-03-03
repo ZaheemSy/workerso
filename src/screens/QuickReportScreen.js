@@ -9,8 +9,6 @@ import {
   Modal,
   ActivityIndicator,
   Alert,
-  Platform,
-  PermissionsAndroid,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
@@ -276,27 +274,6 @@ const QuickReportScreen = ({ navigation }) => {
     };
   }, [reportRows]);
 
-  const requestStoragePermission = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-          {
-            title: 'Storage Permission',
-            message: 'App needs access to storage to save files',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
-        return granted === PermissionsAndroid.RESULTS.GRANTED;
-      } catch (err) {
-        return false;
-      }
-    }
-    return true;
-  };
-
   const getFileName = () => {
     const employeePart = selectedEmployeeIds.length > 0 ? selectedEmployeeName.replace(/ /g, '_') : 'all_employees';
     const projectPart = selectedProjectId ? selectedProjectName.replace(/ /g, '_') : 'all_projects';
@@ -312,11 +289,6 @@ const QuickReportScreen = ({ navigation }) => {
 
     try {
       setDownloading(true);
-      const hasPermission = await requestStoragePermission();
-      if (!hasPermission) {
-        Alert.alert('Permission Denied', 'Storage permission is required to save files');
-        return;
-      }
 
       const headers = [
         'Work Date',
@@ -349,8 +321,7 @@ const QuickReportScreen = ({ navigation }) => {
       XLSX.utils.book_append_sheet(wb, ws, 'Quick Report');
       const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
       const filename = `${getFileName()}.xlsx`;
-      const downloadsPath = Platform.OS === 'android' ? RNFS.DownloadDirectoryPath : RNFS.DocumentDirectoryPath;
-      const path = `${downloadsPath}/${filename}`;
+      const path = `${RNFS.DocumentDirectoryPath}/${filename}`;
       await RNFS.writeFile(path, wbout, 'base64');
       Alert.alert('Success', `Report saved to:\n${path}`);
     } catch (error) {
@@ -360,7 +331,46 @@ const QuickReportScreen = ({ navigation }) => {
     }
   };
 
-  const downloadPdfHtml = async () => {
+  const escapePdfText = value =>
+    String(value || '')
+      .replace(/\\/g, '\\\\')
+      .replace(/\(/g, '\\(')
+      .replace(/\)/g, '\\)');
+
+  const buildSimplePdf = lines => {
+    let stream = 'BT\n/F1 10 Tf\n40 800 Td\n';
+    lines.forEach((line, index) => {
+      if (index > 0) stream += '0 -14 Td\n';
+      stream += `(${escapePdfText(line)}) Tj\n`;
+    });
+    stream += 'ET';
+
+    const objects = [
+      null,
+      '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj',
+      '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj',
+      '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj',
+      `4 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj`,
+      '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj',
+    ];
+
+    let pdf = '%PDF-1.4\n';
+    const offsets = [0];
+    for (let i = 1; i <= 5; i += 1) {
+      offsets[i] = pdf.length;
+      pdf += `${objects[i]}\n`;
+    }
+    const xrefStart = pdf.length;
+    pdf += 'xref\n0 6\n0000000000 65535 f \n';
+    for (let i = 1; i <= 5; i += 1) {
+      pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+    }
+    pdf += 'trailer\n<< /Size 6 /Root 1 0 R >>\n';
+    pdf += `startxref\n${xrefStart}\n%%EOF`;
+    return pdf;
+  };
+
+  const downloadPdf = async () => {
     setShowDownloadModal(false);
     if (reportRows.length === 0) {
       Alert.alert('No Data', 'There is no data to export');
@@ -369,72 +379,26 @@ const QuickReportScreen = ({ navigation }) => {
 
     try {
       setDownloading(true);
-      const hasPermission = await requestStoragePermission();
-      if (!hasPermission) {
-        Alert.alert('Permission Denied', 'Storage permission is required to save files');
-        return;
+      const lines = [
+        'Quick Work Log Report',
+        `${selectedEmployeeName} | ${selectedProjectName}`,
+        `Records: ${reportRows.length}`,
+        '-------------------------------------------',
+      ];
+      reportRows.slice(0, 45).forEach(row => {
+        lines.push(
+          `${row.date} | ${row.employeeName} | ${row.projectName} | ${row.workedLogHHMM}`
+        );
+      });
+      if (reportRows.length > 45) {
+        lines.push(`...and ${reportRows.length - 45} more record(s)`);
       }
 
-      const headers = [
-        'Work Date',
-        'Logged On',
-        'Employee Name',
-        'Project Name',
-        'Project No',
-        'Department',
-        'Worked Log (HH:MM)',
-        'Start Time',
-        'End Time',
-      ];
-      const htmlContent = `
-        <html>
-          <head>
-            <style>
-              body { font-family: Arial, sans-serif; padding: 20px; }
-              h1 { text-align: center; color: #111827; }
-              p { text-align: center; color: #6b7280; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th { background-color: #2563eb; color: white; padding: 10px; text-align: left; }
-              td { border-bottom: 1px solid #e5e7eb; padding: 10px; }
-              tr:nth-child(even) { background-color: #f9fafb; }
-            </style>
-          </head>
-          <body>
-            <h1>Quick Work Log Report</h1>
-            <p>${selectedEmployeeName} • ${selectedProjectName} • ${reportRows.length} record(s)</p>
-            <table>
-              <thead>
-                <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
-              </thead>
-              <tbody>
-                ${reportRows
-                  .map(
-                    row => `
-                      <tr>
-                        <td>${row.date}</td>
-                        <td>${row.loggedOn}</td>
-                        <td>${row.employeeName}</td>
-                        <td>${row.projectName}</td>
-                        <td>${row.projectNo}</td>
-                        <td>${row.departmentName}</td>
-                        <td>${row.workedLogHHMM}</td>
-                        <td>${row.startTime}</td>
-                        <td>${row.endTime}</td>
-                      </tr>
-                    `
-                  )
-                  .join('')}
-              </tbody>
-            </table>
-          </body>
-        </html>
-      `;
-
-      const filename = `${getFileName()}.html`;
-      const downloadsPath = Platform.OS === 'android' ? RNFS.DownloadDirectoryPath : RNFS.DocumentDirectoryPath;
-      const path = `${downloadsPath}/${filename}`;
-      await RNFS.writeFile(path, htmlContent, 'utf8');
-      Alert.alert('Success', `HTML report saved to:\n${path}\n\nOpen in browser and use Print > Save as PDF.`);
+      const pdf = buildSimplePdf(lines);
+      const filename = `${getFileName()}.pdf`;
+      const path = `${RNFS.DocumentDirectoryPath}/${filename}`;
+      await RNFS.writeFile(path, pdf, 'ascii');
+      Alert.alert('Success', `PDF report saved to:\n${path}`);
     } catch (error) {
       Alert.alert('Error', `Failed to export report: ${error.message}`);
     } finally {
@@ -888,10 +852,10 @@ const QuickReportScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
             <TouchableOpacity style={styles.downloadOption} onPress={downloadExcel}>
-              <Text style={styles.downloadOptionText}>Download as Excel</Text>
+              <Text style={styles.downloadOptionText}>Excel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.downloadOption} onPress={downloadPdfHtml}>
-              <Text style={styles.downloadOptionText}>Download as HTML (Print PDF)</Text>
+            <TouchableOpacity style={styles.downloadOption} onPress={downloadPdf}>
+              <Text style={styles.downloadOptionText}>PDF</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.cancelDownload} onPress={() => setShowDownloadModal(false)}>
               <Text style={styles.cancelDownloadText}>Cancel</Text>

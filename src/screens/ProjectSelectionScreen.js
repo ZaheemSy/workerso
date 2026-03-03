@@ -87,7 +87,16 @@ const ProjectSelectionScreen = ({ navigation, route }) => {
   };
 
   const handleProjectSelect = (project) => {
-    // Navigate to report options screen
+    if (reportType === 'worklogs-project') {
+      navigation.navigate('ReportPreview', {
+        reportType,
+        reportOption: 'combined',
+        project,
+      });
+      return;
+    }
+
+    // Keep current flow for attendance reports
     navigation.navigate('ReportOptions', {
       reportType,
       project,

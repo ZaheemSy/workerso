@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -261,6 +262,29 @@ function AppNavigator() {
 }
 
 function App() {
+  useEffect(() => {
+    const requestInitialPermissions = async () => {
+      if (Platform.OS !== 'android') return;
+
+      const permissions = [PermissionsAndroid.PERMISSIONS.CAMERA];
+
+      if (Platform.Version >= 33) {
+        permissions.push(PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES);
+      } else {
+        permissions.push(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
+        permissions.push(PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE);
+      }
+
+      try {
+        await PermissionsAndroid.requestMultiple(permissions);
+      } catch (error) {
+        console.error('Initial permission request failed:', error);
+      }
+    };
+
+    requestInitialPermissions();
+  }, []);
+
   return (
     <SafeAreaProvider>
       <AuthProvider>
