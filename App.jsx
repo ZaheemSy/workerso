@@ -78,6 +78,8 @@ import EmployeeProjectDetailsScreen from './src/screens/EmployeeProjectDetailsSc
 import EmployeeQuickDetailsScreen from './src/screens/EmployeeQuickDetailsScreen';
 import QuickReportScreen from './src/screens/QuickReportScreen';
 import QuickAddWorkLogScreen from './src/screens/QuickAddWorkLogScreen';
+import MaterialManagerScreen from './src/screens/MaterialManagerScreen';
+import MaterialRequestsScreen from './src/screens/MaterialRequestsScreen';
 
 // Organization Screens (Developer)
 import OrganizationsScreen from './src/screens/OrganizationsScreen';
@@ -193,6 +195,8 @@ function AppNavigator() {
               <Stack.Screen name="EmployeeQuickDetails" component={EmployeeQuickDetailsScreen} />
               <Stack.Screen name="QuickReport" component={QuickReportScreen} />
               <Stack.Screen name="QuickAddWorkLog" component={QuickAddWorkLogScreen} />
+              <Stack.Screen name="MaterialManager" component={MaterialManagerScreen} />
+              <Stack.Screen name="MaterialRequests" component={MaterialRequestsScreen} />
             </>
           )}
 
@@ -253,6 +257,8 @@ function AppNavigator() {
               <Stack.Screen name="EmployeeQuickDetails" component={EmployeeQuickDetailsScreen} />
               <Stack.Screen name="QuickReport" component={QuickReportScreen} />
               <Stack.Screen name="QuickAddWorkLog" component={QuickAddWorkLogScreen} />
+              <Stack.Screen name="MaterialManager" component={MaterialManagerScreen} />
+              <Stack.Screen name="MaterialRequests" component={MaterialRequestsScreen} />
             </>
           )}
         </>
@@ -270,6 +276,8 @@ function App() {
 
       if (Platform.Version >= 33) {
         permissions.push(PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES);
+        permissions.push(PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO);
+        permissions.push(PermissionsAndroid.PERMISSIONS.READ_MEDIA_AUDIO);
       } else {
         permissions.push(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
         permissions.push(PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE);

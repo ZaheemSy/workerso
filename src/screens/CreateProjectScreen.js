@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   Modal,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Briefcase, X, Save, FileText, Users, Check, Calendar, UserPlus, UsersIcon, Building2, TrendingUp, Search, Phone, MapPin, Plus } from 'lucide-react-native';
+import { Briefcase, X, Save, FileText, Users, Check, CheckSquare, Square, Calendar, UserPlus, UsersIcon, Building2, TrendingUp, Search, Phone, MapPin, Plus } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
@@ -56,6 +56,7 @@ const CreateProjectScreen = ({ navigation, route }) => {
   const [newClientContact, setNewClientContact] = useState('');
   const [newClientAddress, setNewClientAddress] = useState('');
   const [savingClient, setSavingClient] = useState(false);
+  const [openMaterialRequestAfterCreate, setOpenMaterialRequestAfterCreate] = useState(false);
 
   // Date picker states
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
@@ -63,12 +64,7 @@ const CreateProjectScreen = ({ navigation, route }) => {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
 
-  useEffect(() => {
-    loadWorkersAndGroups();
-    loadClients();
-  }, []);
-
-  const loadWorkersAndGroups = async () => {
+  const loadWorkersAndGroups = useCallback(async () => {
     try {
       const allUsers = await getUsersByOrg(session.orgId);
       const workersList = allUsers.filter(user => user.role === ROLES.WORKER);
@@ -97,16 +93,21 @@ const CreateProjectScreen = ({ navigation, route }) => {
     } catch (error) {
       console.error('Error loading workers and groups:', error);
     }
-  };
+  }, [session.orgId]);
 
-  const loadClients = async () => {
+  const loadClients = useCallback(async () => {
     try {
       const clientList = await getClientsByOrg(session.orgId);
       setClients(clientList);
     } catch (error) {
       console.error('Error loading clients:', error);
     }
-  };
+  }, [session.orgId]);
+
+  useEffect(() => {
+    loadWorkersAndGroups();
+    loadClients();
+  }, [loadClients, loadWorkersAndGroups]);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -306,6 +307,14 @@ const CreateProjectScreen = ({ navigation, route }) => {
           text: 'OK',
           onPress: () => {
             if (onProjectCreated) onProjectCreated();
+            if (openMaterialRequestAfterCreate) {
+              navigation.replace('MaterialRequests', {
+                mode: 'normal',
+                projectId: project.projectId,
+                projectName: project.projectName,
+              });
+              return;
+            }
             navigation.goBack();
           },
         },
@@ -530,6 +539,19 @@ const CreateProjectScreen = ({ navigation, route }) => {
             </View>
           </View>
         )}
+
+        <TouchableOpacity
+          style={styles.optionalRow}
+          onPress={() => setOpenMaterialRequestAfterCreate(prev => !prev)}
+          activeOpacity={0.75}
+        >
+          {openMaterialRequestAfterCreate ? (
+            <CheckSquare color={COLORS.primary} size={18} />
+          ) : (
+            <Square color={COLORS.gray} size={18} />
+          )}
+          <Text style={styles.optionalText}>Add Material Request (Optional)</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
@@ -1146,6 +1168,19 @@ const styles = StyleSheet.create({
   },
   selectedChipTextGroup: {
     color: COLORS.secondary,
+  },
+  optionalRow: {
+    marginTop: 10,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  optionalText: {
+    marginLeft: 8,
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '600',
   },
   button: {
     backgroundColor: COLORS.primary,

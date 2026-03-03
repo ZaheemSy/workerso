@@ -883,6 +883,20 @@ const ProjectDetailScreen = ({ navigation, route }) => {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={styles.materialRequestButton}
+            onPress={() =>
+              navigation.navigate('MaterialRequests', {
+                mode: 'normal',
+                projectId: project.projectId,
+                projectName: project.projectName,
+              })
+            }
+          >
+            <FileText color="#1D4ED8" size={20} />
+            <Text style={styles.materialRequestButtonText}>Add Material Request</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.actionButton}
             onPress={() =>
               navigation.navigate('WorksitePhotoUpload', {
@@ -2188,6 +2202,22 @@ const styles = StyleSheet.create({
   },
   galleryButtonText: {
     color: COLORS.secondary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  materialRequestButton: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: '#93C5FD',
+  },
+  materialRequestButtonText: {
+    color: '#1D4ED8',
     fontSize: 15,
     fontWeight: '600',
   },

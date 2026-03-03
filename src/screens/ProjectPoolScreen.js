@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { ArrowLeft, Plus, Briefcase, CheckSquare, Square, ChevronDown, Search, Pencil, Trash2, X } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
@@ -50,9 +51,11 @@ const ProjectPoolScreen = ({ navigation }) => {
   const [designationMode, setDesignationMode] = useState('pool');
   const [selectedDesignationId, setSelectedDesignationId] = useState('');
   const [newDesignationName, setNewDesignationName] = useState('');
+  const [openMaterialRequestAfterCreate, setOpenMaterialRequestAfterCreate] = useState(false);
   const [projectDepartments, setProjectDepartments] = useState([]);
   const [showDepartmentModal, setShowDepartmentModal] = useState(false);
   const [departmentNameInput, setDepartmentNameInput] = useState('');
+  const [loadingEmployeePool, setLoadingEmployeePool] = useState(false);
   const canManageQuickProject = session?.role === ROLES.SUPER_ADMIN || session?.role === ROLES.ADMIN;
 
   const employeeMap = useMemo(() => {
@@ -83,6 +86,16 @@ const ProjectPoolScreen = ({ navigation }) => {
     setDesignations(designationList.sort((a, b) => a.name.localeCompare(b.name)));
   }, [session.orgId, session.userId]);
 
+  const loadEmployeesOnly = useCallback(async () => {
+    setLoadingEmployeePool(true);
+    try {
+      const employeeList = await getQuickEmployeesByOrg(session.orgId);
+      setEmployees(employeeList.sort((a, b) => a.name.localeCompare(b.name)));
+    } finally {
+      setLoadingEmployeePool(false);
+    }
+  }, [session.orgId]);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
@@ -104,6 +117,7 @@ const ProjectPoolScreen = ({ navigation }) => {
     setDesignationMode('pool');
     setSelectedDesignationId('');
     setNewDesignationName('');
+    setOpenMaterialRequestAfterCreate(false);
     setProjectDepartments([]);
     setDepartmentNameInput('');
     setShowDepartmentModal(false);
@@ -142,7 +156,7 @@ const ProjectPoolScreen = ({ navigation }) => {
   };
 
   const saveProjectWithEmployeeIds = async employeeIds => {
-    await createQuickProject({
+    const project = await createQuickProject({
       orgId: session.orgId,
       name: projectName.trim(),
       projectNo: projectNo.trim(),
@@ -154,8 +168,22 @@ const ProjectPoolScreen = ({ navigation }) => {
       employeeIds,
       createdBy: session.userId,
     });
+    return project;
+  };
+
+  const handlePostProjectCreate = createdProject => {
+    const shouldOpenMaterialRequest = openMaterialRequestAfterCreate;
     closeCreateModal();
     loadData();
+    if (shouldOpenMaterialRequest) {
+      navigation.navigate('MaterialRequests', {
+        mode: 'quick',
+        projectId: createdProject.quickProjectId,
+        projectName: createdProject.name,
+      });
+      return;
+    }
+    Alert.alert('Success', 'Project created successfully');
   };
 
   const saveProject = async () => {
@@ -175,12 +203,9 @@ const ProjectPoolScreen = ({ navigation }) => {
     }
 
     if (employeeMode === 'pool') {
-      if (selectedEmployeeIds.length === 0) {
-        Alert.alert('Validation', 'At least one employee is required');
-        return;
-      }
       try {
-        await saveProjectWithEmployeeIds(selectedEmployeeIds);
+        const createdProject = await saveProjectWithEmployeeIds(selectedEmployeeIds);
+        handlePostProjectCreate(createdProject);
       } catch (error) {
         if (error?.message === 'PROJECT_NO_ALREADY_EXISTS') {
           Alert.alert('Validation', 'Project no. is already present.');
@@ -217,7 +242,8 @@ const ProjectPoolScreen = ({ navigation }) => {
             text: 'Use Existing',
             onPress: async () => {
               try {
-                await saveProjectWithEmployeeIds([existingEmployee.quickEmployeeId]);
+                const createdProject = await saveProjectWithEmployeeIds([existingEmployee.quickEmployeeId]);
+                handlePostProjectCreate(createdProject);
               } catch (error) {
                 if (error?.message === 'PROJECT_NO_ALREADY_EXISTS') {
                   Alert.alert('Validation', 'Project no. is already present.');
@@ -240,7 +266,8 @@ const ProjectPoolScreen = ({ navigation }) => {
     });
 
     try {
-      await saveProjectWithEmployeeIds([createdEmployee.quickEmployeeId]);
+      const createdProject = await saveProjectWithEmployeeIds([createdEmployee.quickEmployeeId]);
+      handlePostProjectCreate(createdProject);
     } catch (error) {
       if (error?.message === 'PROJECT_NO_ALREADY_EXISTS') {
         Alert.alert('Validation', 'Project no. is already present.');
@@ -248,6 +275,12 @@ const ProjectPoolScreen = ({ navigation }) => {
       }
       Alert.alert('Error', 'Failed to create project');
     }
+  };
+
+  const openEmployeePicker = async () => {
+    Keyboard.dismiss();
+    await loadEmployeesOnly();
+    setShowEmployeePicker(true);
   };
 
   const addDepartmentToDraft = () => {
@@ -396,7 +429,7 @@ const ProjectPoolScreen = ({ navigation }) => {
       >
         <KeyboardAvoidingView
           style={styles.modalKeyboardWrapper}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={styles.modalOverlay}>
             <View style={[styles.modalCard, styles.editorModalCard]}>
@@ -474,11 +507,11 @@ const ProjectPoolScreen = ({ navigation }) => {
                 </View>
 
                 {employeeMode === 'pool' ? (
-                  <TouchableOpacity style={styles.selectBtn} onPress={() => setShowEmployeePicker(true)}>
+                  <TouchableOpacity style={styles.selectBtn} onPress={openEmployeePicker}>
                     <Text style={[styles.selectText, selectedEmployeeIds.length === 0 && styles.placeholder]}>
                       {selectedEmployeeIds.length > 0
                         ? `${selectedEmployeeIds.length} employee(s) selected`
-                        : 'Select employee(s)'}
+                        : 'Select employee(s) - optional'}
                     </Text>
                     <ChevronDown color={COLORS.gray} size={16} />
                   </TouchableOpacity>
@@ -526,9 +559,22 @@ const ProjectPoolScreen = ({ navigation }) => {
                         value={newDesignationName}
                         onChangeText={setNewDesignationName}
                       />
-                    )}
-                  </View>
                 )}
+              </View>
+            )}
+
+                <TouchableOpacity
+                  style={styles.optionalRow}
+                  onPress={() => setOpenMaterialRequestAfterCreate(prev => !prev)}
+                  activeOpacity={0.75}
+                >
+                  {openMaterialRequestAfterCreate ? (
+                    <CheckSquare color={COLORS.primary} size={18} />
+                  ) : (
+                    <Square color={COLORS.gray} size={18} />
+                  )}
+                  <Text style={styles.optionalText}>Add Material Request (Optional)</Text>
+                </TouchableOpacity>
 
                 <View style={styles.modalButtons}>
                   <TouchableOpacity style={styles.cancelBtn} onPress={closeCreateModal}>
@@ -578,7 +624,11 @@ const ProjectPoolScreen = ({ navigation }) => {
                   </TouchableOpacity>
                 );
               }}
-              ListEmptyComponent={<Text style={styles.emptyText}>No employees available</Text>}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>
+                  {loadingEmployeePool ? 'Loading employees...' : 'No employees in employee pool'}
+                </Text>
+              }
             />
             <TouchableOpacity style={styles.doneBtn} onPress={() => setShowEmployeePicker(false)}>
               <Text style={styles.doneBtnText}>Done</Text>
@@ -599,7 +649,7 @@ const ProjectPoolScreen = ({ navigation }) => {
       >
         <KeyboardAvoidingView
           style={styles.modalKeyboardWrapper}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
@@ -691,7 +741,7 @@ const ProjectPoolScreen = ({ navigation }) => {
       >
         <KeyboardAvoidingView
           style={styles.modalKeyboardWrapper}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
@@ -1034,6 +1084,18 @@ const styles = StyleSheet.create({
   },
   selectText: { color: COLORS.text, fontSize: 14 },
   placeholder: { color: COLORS.gray },
+  optionalRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  optionalText: {
+    marginLeft: 8,
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 },
   cancelBtn: { paddingHorizontal: 12, height: 36, justifyContent: 'center' },
   cancelBtnText: { color: COLORS.textLight, fontWeight: '600' },

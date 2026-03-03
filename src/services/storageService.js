@@ -92,6 +92,8 @@ export const STORAGE_KEYS = {
   QUICK_EMPLOYEES: '@workerso_quick_employees',
   QUICK_PROJECTS: '@workerso_quick_projects',
   QUICK_WORKLOGS: '@workerso_quick_worklogs',
+  MATERIALS: '@workerso_materials',
+  MATERIAL_REQUESTS: '@workerso_material_requests',
 };
 
 // Helper function to generate unique IDs
@@ -825,4 +827,85 @@ export const updateQuickWorkLog = async (quickWorkLogId, updates) => {
 export const getQuickWorkLogsByOrg = async orgId => {
   const logs = (await getItem(STORAGE_KEYS.QUICK_WORKLOGS)) || [];
   return logs.filter(item => item.orgId === orgId);
+};
+
+// ============================================
+// MATERIAL MANAGER SERVICES
+// ============================================
+
+export const getMaterialsByOrg = async orgId => {
+  const materials = (await getItem(STORAGE_KEYS.MATERIALS)) || [];
+  return materials.filter(item => item.orgId === orgId);
+};
+
+export const createMaterial = async data => {
+  const materials = (await getItem(STORAGE_KEYS.MATERIALS)) || [];
+  const now = new Date().toISOString();
+  const newItem = {
+    materialId: generateId('material'),
+    name: String(data.name || '').trim(),
+    approximatePrice: Number(data.approximatePrice || 0),
+    orgId: data.orgId,
+    createdBy: data.createdBy || null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  materials.push(newItem);
+  await setItem(STORAGE_KEYS.MATERIALS, materials);
+  return newItem;
+};
+
+export const updateMaterial = async (materialId, updates) => {
+  const materials = (await getItem(STORAGE_KEYS.MATERIALS)) || [];
+  const index = materials.findIndex(item => item.materialId === materialId);
+  if (index === -1) return null;
+
+  materials[index] = {
+    ...materials[index],
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await setItem(STORAGE_KEYS.MATERIALS, materials);
+  return materials[index];
+};
+
+export const createMaterialRequest = async data => {
+  const requests = (await getItem(STORAGE_KEYS.MATERIAL_REQUESTS)) || [];
+  const now = new Date().toISOString();
+  const items = Array.isArray(data.items)
+    ? data.items.map(item => ({
+        materialId: item.materialId,
+        materialName: String(item.materialName || '').trim(),
+        quantity: Number(item.quantity || 0),
+        price: Number(item.price || 0),
+        total: Number(item.total || 0),
+      }))
+    : [];
+
+  const newItem = {
+    requestId: generateId('material_request'),
+    orgId: data.orgId,
+    mode: data.mode || 'normal', // normal | quick
+    projectId: data.projectId,
+    projectName: data.projectName || '',
+    items,
+    totalAmount: items.reduce((sum, item) => sum + Number(item.total || 0), 0),
+    createdBy: data.createdBy || null,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  requests.push(newItem);
+  await setItem(STORAGE_KEYS.MATERIAL_REQUESTS, requests);
+  return newItem;
+};
+
+export const getMaterialRequestsByProject = async (orgId, mode, projectId) => {
+  const requests = (await getItem(STORAGE_KEYS.MATERIAL_REQUESTS)) || [];
+  return requests
+    .filter(
+      item => item.orgId === orgId && item.mode === mode && item.projectId === projectId
+    )
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };

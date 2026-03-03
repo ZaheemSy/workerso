@@ -104,6 +104,9 @@ const SignupScreen = ({ navigation }) => {
     if (!validateForm()) return;
 
     setLoading(true);
+    let userCredential = null;
+    let reservedUsername = null;
+    let reservedUid = null;
     try {
       // Create organization
       const org = await createOrganization({
@@ -126,8 +129,83 @@ const SignupScreen = ({ navigation }) => {
       const username = formData.username.trim().toLowerCase();
 
       // Create Firebase Auth account first so uid becomes the source-of-truth user id
-      const userCredential = await auth().createUserWithEmailAndPassword(email, formData.password);
+      userCredential = await auth().createUserWithEmailAndPassword(email, formData.password);
       const uid = userCredential.user.uid;
+      reservedUid = uid;
+
+      // Reserve username in a dedicated mapping collection (unique key = doc id).
+      // This avoids duplicate usernames and supports username-based login lookup.
+      try {
+        const usernameRef = firestore().collection('usernames').doc(username);
+        const usernameDoc = await usernameRef.get({ source: 'server' });
+
+        if (usernameDoc.exists) {
+          const existingData = usernameDoc.data() || {};
+          const existingUid = existingData.uid ? String(existingData.uid) : '';
+          const existingEmail = existingData.email
+            ? String(existingData.email).toLowerCase()
+            : '';
+
+          let canReclaim = false;
+          if (!existingUid) {
+            canReclaim = true;
+          } else if (existingUid === uid || (existingEmail && existingEmail === email)) {
+            canReclaim = true;
+          } else {
+            const existingUserDoc = await firestore()
+              .collection('users')
+              .doc(existingUid)
+              .get({ source: 'server' });
+            canReclaim = !existingUserDoc.exists;
+          }
+
+          if (!canReclaim) {
+            const takenError = new Error('Username already exists');
+            takenError.name = 'UsernameTakenError';
+            throw takenError;
+          }
+
+          await usernameRef.set({
+            username,
+            uid,
+            email,
+            createdAt: existingData.createdAt || firestore.FieldValue.serverTimestamp(),
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          });
+        } else {
+          await usernameRef.set({
+            username,
+            uid,
+            email,
+            createdAt: firestore.FieldValue.serverTimestamp(),
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          });
+        }
+
+        reservedUsername = username;
+      } catch (usernameError) {
+        // Roll back just-created auth account when username reservation fails.
+        try {
+          await userCredential.user.delete();
+        } catch (deleteError) {
+          console.error('Failed to rollback auth user after username reservation error:', deleteError);
+        }
+
+        if (usernameError?.name === 'UsernameTakenError') {
+          throw new Error('Username already taken. Please choose a different username.');
+        }
+
+        const permissionDenied =
+          usernameError?.code === 'firestore/permission-denied' ||
+          String(usernameError?.message || '').toLowerCase().includes('permission_denied') ||
+          String(usernameError?.message || '').toLowerCase().includes('insufficient permissions');
+
+        if (permissionDenied) {
+          throw new Error('Firebase rules are blocking username setup. Please update Firestore rules for the usernames collection.');
+        }
+
+        throw usernameError;
+      }
 
       // Minimal cloud profile for account restore after reinstall
       await firestore().collection('users').doc(uid).set({
@@ -171,6 +249,30 @@ const SignupScreen = ({ navigation }) => {
         [{ text: 'OK', onPress: () => navigation.replace('Login') }]
       );
     } catch (error) {
+      // Cleanup partially created signup artifacts to avoid stale username locks.
+      if (reservedUsername && reservedUid) {
+        try {
+          const usernameRef = firestore().collection('usernames').doc(reservedUsername);
+          const usernameDoc = await usernameRef.get();
+          if (usernameDoc.exists && usernameDoc.data()?.uid === reservedUid) {
+            await usernameRef.delete();
+          }
+        } catch (cleanupUsernameError) {
+          console.error('Failed to cleanup reserved username:', cleanupUsernameError);
+        }
+      }
+
+      if (userCredential?.user) {
+        try {
+          await userCredential.user.delete();
+        } catch (cleanupAuthError) {
+          const noCurrentUser = cleanupAuthError?.code === 'auth/no-current-user';
+          if (!noCurrentUser) {
+            console.error('Failed to cleanup auth user after signup failure:', cleanupAuthError);
+          }
+        }
+      }
+
       setLoading(false);
       Alert.alert('Error', error.message || 'Failed to create account');
       console.error('Signup error:', error);

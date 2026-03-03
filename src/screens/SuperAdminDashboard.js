@@ -23,6 +23,7 @@ import {
   Sparkles,
   Heart,
   GitBranch,
+  Package,
 } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
@@ -104,6 +105,15 @@ const SuperAdminDashboard = ({ navigation }) => {
       number: '6',
       numberColor: '#FCD34D',
       onPress: () => navigation.navigate('ProjectList'),
+    },
+    {
+      icon: Package,
+      title: 'Material Manager',
+      subtitle: 'Manage material pool',
+      color: '#0F766E',
+      number: '7',
+      numberColor: '#5EEAD4',
+      onPress: () => navigation.navigate('MaterialManager', { mode: 'normal' }),
     },
     {
       icon: FileBarChart,

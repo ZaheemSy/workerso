@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList, Alert, TextInput } from 'react-native';
-import { ArrowLeft, Plus, Users, Trash2, CheckSquare, Square, Search, Pencil, Building2, UserPlus, ChevronDown, X, Image as ImageIcon } from 'lucide-react-native';
+import { ArrowLeft, Plus, Users, Trash2, CheckSquare, Square, Search, Pencil, Building2, UserPlus, ChevronDown, X, Image as ImageIcon, FileText } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
@@ -447,6 +447,20 @@ const QuickProjectDetailsScreen = ({ navigation, route }) => {
         >
           <ImageIcon color={COLORS.secondary} size={16} />
           <Text style={styles.galleryButtonText}>Project Gallery</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.materialRequestButton}
+          onPress={() =>
+            navigation.navigate('MaterialRequests', {
+              mode: 'quick',
+              projectId: quickProjectId,
+              projectName: project.name,
+            })
+          }
+        >
+          <FileText color="#1D4ED8" size={16} />
+          <Text style={styles.materialRequestButtonText}>Add Material Request</Text>
         </TouchableOpacity>
 
         <View style={styles.departmentBlock}>
@@ -1078,6 +1092,23 @@ const styles = StyleSheet.create({
   galleryButtonText: {
     marginLeft: 6,
     color: '#15803D',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  materialRequestButton: {
+    marginBottom: 12,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1.2,
+    borderColor: '#93C5FD',
+    backgroundColor: '#EFF6FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  materialRequestButtonText: {
+    marginLeft: 6,
+    color: '#1D4ED8',
     fontSize: 13,
     fontWeight: '700',
   },

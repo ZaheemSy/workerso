@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { X, Briefcase, Users, Layers, ChevronRight, Sparkles, FileSpreadsheet, FileText } from 'lucide-react-native';
+import { X, Briefcase, Users, Layers, ChevronRight, Sparkles, FileSpreadsheet, FileText, Package } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 
 const QuickPageScreen = ({ navigation }) => {
@@ -49,6 +49,15 @@ const QuickPageScreen = ({ navigation }) => {
       color: '#7C3AED',
       tint: '#EDE9FE',
       onPress: () => navigation.navigate('QuickReport'),
+    },
+    {
+      key: 'material_manager',
+      title: 'Material Manager',
+      subtitle: 'Manage material pool and prices',
+      icon: Package,
+      color: '#0F766E',
+      tint: '#CCFBF1',
+      onPress: () => navigation.navigate('MaterialManager', { mode: 'quick' }),
     },
   ];
 

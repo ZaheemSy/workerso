@@ -235,6 +235,18 @@ const AdminDashboard = ({ navigation }) => {
       numberColor: '#C4B5FD',
       onPress: () => navigation.navigate('QuickPage'),
     },
+    {
+      animation: require('../assets/json/Projects.json'),
+      title: 'Material Manager',
+      subtitle: 'Manage material pool',
+      icon: '📦',
+      color: '#0F766E',
+      bgColor: '#CCFBF1',
+      scale: 1.5,
+      number: '7',
+      numberColor: '#5EEAD4',
+      onPress: () => navigation.navigate('MaterialManager', { mode: 'normal' }),
+    },
   ];
 
   return (

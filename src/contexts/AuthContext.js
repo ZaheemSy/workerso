@@ -159,14 +159,44 @@ export const AuthProvider = ({ children }) => {
 
       let email = identifier;
       if (!identifier.includes('@')) {
-        const localUser = await authenticateUser(identifier, password);
-        if (!localUser?.email) {
+        // Primary: resolve username from dedicated mapping collection.
+        try {
+          const usernameDoc = await firestore().collection('usernames').doc(identifier).get();
+          if (usernameDoc.exists) {
+            const usernameData = usernameDoc.data();
+            if (usernameData?.email) {
+              email = String(usernameData.email).toLowerCase();
+            }
+          }
+        } catch (usernameLookupError) {
+          const permissionDenied =
+            usernameLookupError?.code === 'firestore/permission-denied' ||
+            String(usernameLookupError?.message || '').toLowerCase().includes('permission_denied') ||
+            String(usernameLookupError?.message || '').toLowerCase().includes('insufficient permissions');
+
+          if (permissionDenied) {
+            return {
+              success: false,
+              message: 'Username login is blocked by Firebase rules. Use email login until rules are updated.',
+            };
+          }
+          throw usernameLookupError;
+        }
+
+        // Fallback: support legacy local-only users if cloud profile is not available.
+        if (email === identifier) {
+          const localUser = await authenticateUser(identifier, password);
+          if (localUser?.email) {
+            email = localUser.email.toLowerCase();
+          }
+        }
+
+        if (email === identifier) {
           return {
             success: false,
-            message: 'Use your email to login. Username login is no longer supported.',
+            message: 'Username not found. Please check your username or use email.',
           };
         }
-        email = localUser.email.toLowerCase();
       }
 
       const userCredential = await auth().signInWithEmailAndPassword(email, password);
