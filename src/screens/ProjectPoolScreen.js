@@ -13,7 +13,7 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
-import { ArrowLeft, Plus, Briefcase, CheckSquare, Square, ChevronDown, Search, Pencil, Trash2, X } from 'lucide-react-native';
+import { ArrowLeft, Plus, Briefcase, CheckSquare, Square, ChevronDown, Search, Pencil, Trash2, X, Check } from 'lucide-react-native';
 import { COLORS } from '../constants/colors';
 import { ROLES } from '../constants/roles';
 import { useAuth } from '../contexts/AuthContext';
@@ -37,6 +37,9 @@ const ProjectPoolScreen = ({ navigation }) => {
   const [showEditor, setShowEditor] = useState(false);
   const [showEmployeePicker, setShowEmployeePicker] = useState(false);
   const [showDesignationPicker, setShowDesignationPicker] = useState(false);
+  const [showNewEmployeeModal, setShowNewEmployeeModal] = useState(false);
+  const [showNewDesignationModal, setShowNewDesignationModal] = useState(false);
+  const [showNewlyAddedEmployeesModal, setShowNewlyAddedEmployeesModal] = useState(false);
   const [showProjectRenameModal, setShowProjectRenameModal] = useState(false);
   const [projectName, setProjectName] = useState('');
   const [projectNo, setProjectNo] = useState('');
@@ -46,11 +49,15 @@ const ProjectPoolScreen = ({ navigation }) => {
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [designations, setDesignations] = useState([]);
-  const [employeeMode, setEmployeeMode] = useState('pool');
+  const [employeeMode, setEmployeeMode] = useState(null);
   const [newEmployeeName, setNewEmployeeName] = useState('');
-  const [designationMode, setDesignationMode] = useState('pool');
+  const [designationMode, setDesignationMode] = useState(null);
   const [selectedDesignationId, setSelectedDesignationId] = useState('');
   const [newDesignationName, setNewDesignationName] = useState('');
+  const [tempSelectedEmployeeIds, setTempSelectedEmployeeIds] = useState([]);
+  const [tempSelectedDesignationId, setTempSelectedDesignationId] = useState('');
+  const [tempNewDesignationName, setTempNewDesignationName] = useState('');
+  const [newlyAddedEmployeeIds, setNewlyAddedEmployeeIds] = useState([]);
   const [openMaterialRequestAfterCreate, setOpenMaterialRequestAfterCreate] = useState(false);
   const [projectDepartments, setProjectDepartments] = useState([]);
   const [showDepartmentModal, setShowDepartmentModal] = useState(false);
@@ -73,6 +80,11 @@ const ProjectPoolScreen = ({ navigation }) => {
     });
     return map;
   }, [designations]);
+
+  const newlyAddedEmployees = useMemo(
+    () => employees.filter(item => newlyAddedEmployeeIds.includes(item.quickEmployeeId)),
+    [employees, newlyAddedEmployeeIds]
+  );
 
   const loadData = useCallback(async () => {
     await ensureQuickDefaultDesignations(session.orgId, session.userId);
@@ -100,27 +112,28 @@ const ProjectPoolScreen = ({ navigation }) => {
     loadData();
   }, [loadData]);
 
-  const toggleSelection = quickEmployeeId => {
-    setSelectedEmployeeIds(prev =>
-      prev.includes(quickEmployeeId)
-        ? prev.filter(id => id !== quickEmployeeId)
-        : [...prev, quickEmployeeId]
-    );
-  };
-
   const resetEditor = () => {
     setProjectName('');
     setProjectNo('');
     setSelectedEmployeeIds([]);
-    setEmployeeMode('pool');
+    setEmployeeMode(null);
     setNewEmployeeName('');
-    setDesignationMode('pool');
+    setDesignationMode(null);
     setSelectedDesignationId('');
     setNewDesignationName('');
+    setTempSelectedEmployeeIds([]);
+    setTempSelectedDesignationId('');
+    setTempNewDesignationName('');
     setOpenMaterialRequestAfterCreate(false);
     setProjectDepartments([]);
     setDepartmentNameInput('');
     setShowDepartmentModal(false);
+    setShowEmployeePicker(false);
+    setShowDesignationPicker(false);
+    setShowNewEmployeeModal(false);
+    setShowNewDesignationModal(false);
+    setShowNewlyAddedEmployeesModal(false);
+    setNewlyAddedEmployeeIds([]);
   };
 
   const openCreateModal = () => {
@@ -202,20 +215,48 @@ const ProjectPoolScreen = ({ navigation }) => {
       return;
     }
 
-    if (employeeMode === 'pool') {
-      try {
-        const createdProject = await saveProjectWithEmployeeIds(selectedEmployeeIds);
-        handlePostProjectCreate(createdProject);
-      } catch (error) {
-        if (error?.message === 'PROJECT_NO_ALREADY_EXISTS') {
-          Alert.alert('Validation', 'Project no. is already present.');
-          return;
-        }
-        Alert.alert('Error', 'Failed to create project');
+    try {
+      const createdProject = await saveProjectWithEmployeeIds(selectedEmployeeIds);
+      handlePostProjectCreate(createdProject);
+    } catch (error) {
+      if (error?.message === 'PROJECT_NO_ALREADY_EXISTS') {
+        Alert.alert('Validation', 'Project no. is already present.');
+        return;
       }
-      return;
+      Alert.alert('Error', 'Failed to create project');
     }
+  };
 
+  const openEmployeePicker = async () => {
+    Keyboard.dismiss();
+    await loadEmployeesOnly();
+    setTempSelectedEmployeeIds(selectedEmployeeIds);
+    setShowEmployeePicker(true);
+  };
+
+  const openNewEmployeeModalEditor = () => {
+    Keyboard.dismiss();
+    setEmployeeMode('new');
+    setNewEmployeeName('');
+    setDesignationMode(null);
+    setSelectedDesignationId('');
+    setNewDesignationName('');
+    setTempSelectedDesignationId('');
+    setTempNewDesignationName('');
+    setShowNewEmployeeModal(true);
+  };
+
+  const openDesignationPoolPicker = () => {
+    setTempSelectedDesignationId(selectedDesignationId || '');
+    setShowDesignationPicker(true);
+  };
+
+  const openNewDesignationEntry = () => {
+    setTempNewDesignationName(newDesignationName || '');
+    setShowNewDesignationModal(true);
+  };
+
+  const addNewEmployeeToDraft = async () => {
     const employeeName = newEmployeeName.trim();
     if (!employeeName) {
       Alert.alert('Validation', 'Please enter employee name');
@@ -233,28 +274,12 @@ const ProjectPoolScreen = ({ navigation }) => {
     );
 
     if (existingEmployee) {
-      Alert.alert(
-        'Employee Already Exists',
-        `"${existingEmployee.name}" is already in employee pool. Use existing employee or rename.`,
-        [
-          { text: 'Rename', style: 'cancel' },
-          {
-            text: 'Use Existing',
-            onPress: async () => {
-              try {
-                const createdProject = await saveProjectWithEmployeeIds([existingEmployee.quickEmployeeId]);
-                handlePostProjectCreate(createdProject);
-              } catch (error) {
-                if (error?.message === 'PROJECT_NO_ALREADY_EXISTS') {
-                  Alert.alert('Validation', 'Project no. is already present.');
-                  return;
-                }
-                Alert.alert('Error', 'Failed to create project');
-              }
-            },
-          },
-        ]
+      setSelectedEmployeeIds(prev =>
+        prev.includes(existingEmployee.quickEmployeeId) ? prev : [...prev, existingEmployee.quickEmployeeId]
       );
+      setShowNewEmployeeModal(false);
+      setShowNewlyAddedEmployeesModal(true);
+      Alert.alert('Info', `"${existingEmployee.name}" already exists in pool and is now selected for this project.`);
       return;
     }
 
@@ -265,22 +290,17 @@ const ProjectPoolScreen = ({ navigation }) => {
       createdBy: session.userId,
     });
 
-    try {
-      const createdProject = await saveProjectWithEmployeeIds([createdEmployee.quickEmployeeId]);
-      handlePostProjectCreate(createdProject);
-    } catch (error) {
-      if (error?.message === 'PROJECT_NO_ALREADY_EXISTS') {
-        Alert.alert('Validation', 'Project no. is already present.');
-        return;
-      }
-      Alert.alert('Error', 'Failed to create project');
-    }
-  };
-
-  const openEmployeePicker = async () => {
-    Keyboard.dismiss();
-    await loadEmployeesOnly();
-    setShowEmployeePicker(true);
+    setEmployees(prev =>
+      [...prev, createdEmployee].sort((a, b) => a.name.localeCompare(b.name))
+    );
+    setSelectedEmployeeIds(prev =>
+      prev.includes(createdEmployee.quickEmployeeId) ? prev : [...prev, createdEmployee.quickEmployeeId]
+    );
+    setNewlyAddedEmployeeIds(prev =>
+      prev.includes(createdEmployee.quickEmployeeId) ? prev : [...prev, createdEmployee.quickEmployeeId]
+    );
+    setShowNewEmployeeModal(false);
+    setShowNewlyAddedEmployeesModal(true);
   };
 
   const addDepartmentToDraft = () => {
@@ -490,15 +510,20 @@ const ProjectPoolScreen = ({ navigation }) => {
                 <View style={styles.modeSwitch}>
                   <TouchableOpacity
                     style={[styles.modeButton, employeeMode === 'pool' && styles.modeButtonActive]}
-                    onPress={() => setEmployeeMode('pool')}
+                    onPress={async () => {
+                      setEmployeeMode('pool');
+                      await openEmployeePicker();
+                    }}
                   >
                     <Text style={[styles.modeButtonText, employeeMode === 'pool' && styles.modeButtonTextActive]}>
-                      Employees from pool
+                      {employeeMode === 'pool' && selectedEmployeeIds.length > 0
+                        ? `${selectedEmployeeIds.length} employee(s) selected`
+                        : 'Employees from pool'}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.modeButton, employeeMode === 'new' && styles.modeButtonActive]}
-                    onPress={() => setEmployeeMode('new')}
+                    onPress={openNewEmployeeModalEditor}
                   >
                     <Text style={[styles.modeButtonText, employeeMode === 'new' && styles.modeButtonTextActive]}>
                       New employee
@@ -515,53 +540,19 @@ const ProjectPoolScreen = ({ navigation }) => {
                     </Text>
                     <ChevronDown color={COLORS.gray} size={16} />
                   </TouchableOpacity>
-                ) : (
-                  <View>
-                    <TextInput
-                      style={[styles.input, styles.mt10]}
-                      placeholder="Employee name"
-                      placeholderTextColor={COLORS.gray}
-                      value={newEmployeeName}
-                      onChangeText={setNewEmployeeName}
-                    />
-                    <Text style={styles.sectionLabel}>Designation</Text>
-                    <View style={styles.modeSwitch}>
-                      <TouchableOpacity
-                        style={[styles.modeButton, designationMode === 'pool' && styles.modeButtonActive]}
-                        onPress={() => setDesignationMode('pool')}
-                      >
-                        <Text style={[styles.modeButtonText, designationMode === 'pool' && styles.modeButtonTextActive]}>
-                          Select from pool
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.modeButton, designationMode === 'new' && styles.modeButtonActive]}
-                        onPress={() => setDesignationMode('new')}
-                      >
-                        <Text style={[styles.modeButtonText, designationMode === 'new' && styles.modeButtonTextActive]}>
-                          Add directly
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                ) : null}
 
-                    {designationMode === 'pool' ? (
-                      <TouchableOpacity style={styles.selectBtn} onPress={() => setShowDesignationPicker(true)}>
-                        <Text style={[styles.selectText, !selectedDesignationId && styles.placeholder]}>
-                          {selectedDesignationId ? designationMap[selectedDesignationId] : 'Select designation'}
-                        </Text>
-                        <ChevronDown color={COLORS.gray} size={16} />
-                      </TouchableOpacity>
-                    ) : (
-                      <TextInput
-                        style={[styles.input, styles.mt10]}
-                        placeholder="Designation name"
-                        placeholderTextColor={COLORS.gray}
-                        value={newDesignationName}
-                        onChangeText={setNewDesignationName}
-                      />
-                )}
-              </View>
-            )}
+                {employeeMode === 'new' ? (
+                  <TouchableOpacity
+                    style={[styles.selectBtn, styles.newlyAddedBtn]}
+                    onPress={() => setShowNewlyAddedEmployeesModal(true)}
+                  >
+                    <Text style={styles.selectText}>
+                      Newly Added Employee List ({newlyAddedEmployeeIds.length})
+                    </Text>
+                    <ChevronDown color={COLORS.gray} size={16} />
+                  </TouchableOpacity>
+                ) : null}
 
                 <TouchableOpacity
                   style={styles.optionalRow}
@@ -608,11 +599,17 @@ const ProjectPoolScreen = ({ navigation }) => {
               data={employees}
               keyExtractor={item => item.quickEmployeeId}
               renderItem={({ item }) => {
-                const selected = selectedEmployeeIds.includes(item.quickEmployeeId);
+                const selected = tempSelectedEmployeeIds.includes(item.quickEmployeeId);
                 return (
                   <TouchableOpacity
                     style={styles.employeeItem}
-                    onPress={() => toggleSelection(item.quickEmployeeId)}
+                    onPress={() =>
+                      setTempSelectedEmployeeIds(prev =>
+                        prev.includes(item.quickEmployeeId)
+                          ? prev.filter(id => id !== item.quickEmployeeId)
+                          : [...prev, item.quickEmployeeId]
+                      )
+                    }
                     activeOpacity={0.75}
                   >
                     {selected ? (
@@ -620,7 +617,12 @@ const ProjectPoolScreen = ({ navigation }) => {
                     ) : (
                       <Square color={COLORS.gray} size={18} />
                     )}
-                    <Text style={styles.employeeText}>{employeeMap[item.quickEmployeeId]}</Text>
+                    <View style={styles.employeeInfoBlock}>
+                      <Text style={styles.employeeText}>{employeeMap[item.quickEmployeeId]}</Text>
+                      <Text style={styles.employeeSubText}>
+                        {designationMap[item.designationId] || 'No designation'}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 );
               }}
@@ -630,11 +632,171 @@ const ProjectPoolScreen = ({ navigation }) => {
                 </Text>
               }
             />
-            <TouchableOpacity style={styles.doneBtn} onPress={() => setShowEmployeePicker(false)}>
-              <Text style={styles.doneBtnText}>Done</Text>
-            </TouchableOpacity>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => {
+                  setTempSelectedEmployeeIds(selectedEmployeeIds);
+                  setShowEmployeePicker(false);
+                }}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={() => {
+                  setSelectedEmployeeIds(tempSelectedEmployeeIds);
+                  setShowEmployeePicker(false);
+                }}
+              >
+                <Text style={styles.saveBtnText}>OK</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={showNewlyAddedEmployeesModal}
+        animationType="fade"
+        onRequestClose={() => setShowNewlyAddedEmployeesModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Newly Added Employees</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowNewlyAddedEmployeesModal(false)}>
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={newlyAddedEmployees}
+              keyExtractor={item => item.quickEmployeeId}
+              renderItem={({ item }) => (
+                <View style={styles.newlyAddedItem}>
+                  <View style={styles.employeeInfoBlock}>
+                    <Text style={styles.employeeText}>{item.name}</Text>
+                    <Text style={styles.employeeSubText}>
+                      {designationMap[item.designationId] || 'No designation'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.removeFromSelectionBtn}
+                    onPress={() => {
+                      setSelectedEmployeeIds(prev => prev.filter(id => id !== item.quickEmployeeId));
+                      setNewlyAddedEmployeeIds(prev => prev.filter(id => id !== item.quickEmployeeId));
+                    }}
+                  >
+                    <Text style={styles.removeFromSelectionText}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>No newly added employees yet.</Text>
+              }
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowNewlyAddedEmployeesModal(false)}>
+                <Text style={styles.cancelBtnText}>Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={() => {
+                  setShowNewlyAddedEmployeesModal(false);
+                  openNewEmployeeModalEditor();
+                }}
+              >
+                <Text style={styles.saveBtnText}>Add New Employee</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={showNewEmployeeModal}
+        animationType="fade"
+        onRequestClose={() => setShowNewEmployeeModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalKeyboardWrapper}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>New Employee</Text>
+                <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowNewEmployeeModal(false)}>
+                  <X color={COLORS.textLight} size={18} />
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={styles.input}
+                placeholder="Employee name"
+                placeholderTextColor={COLORS.gray}
+                value={newEmployeeName}
+                onChangeText={setNewEmployeeName}
+              />
+
+              <Text style={styles.sectionLabel}>Designation</Text>
+              <View style={styles.modeSwitch}>
+                <TouchableOpacity
+                  style={[styles.modeButton, designationMode === 'pool' && styles.modeButtonActive]}
+                  onPress={() => {
+                    setDesignationMode('pool');
+                    setNewDesignationName('');
+                    openDesignationPoolPicker();
+                  }}
+                >
+                  <Text style={[styles.modeButtonText, designationMode === 'pool' && styles.modeButtonTextActive]}>
+                    Select from pool
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modeButton, designationMode === 'new' && styles.modeButtonActive]}
+                  onPress={() => {
+                    setDesignationMode('new');
+                    setSelectedDesignationId('');
+                    setTempSelectedDesignationId('');
+                    openNewDesignationEntry();
+                  }}
+                >
+                  <Text style={[styles.modeButtonText, designationMode === 'new' && styles.modeButtonTextActive]}>
+                    Add directly
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.selectedDesignationLabel}>Selected Designation</Text>
+              <Text style={[styles.selectedDesignationValue, !designationMode && styles.placeholder]}>
+                {designationMode === 'pool'
+                  ? selectedDesignationId
+                    ? designationMap[selectedDesignationId]
+                    : 'No designation selected'
+                  : designationMode === 'new'
+                    ? newDesignationName || 'No designation selected'
+                    : 'No designation option selected'}
+              </Text>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowNewEmployeeModal(false)}>
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.saveBtn}
+                  onPress={addNewEmployeeToDraft}
+                >
+                  <Text style={styles.saveBtnText}>OK</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -708,28 +870,100 @@ const ProjectPoolScreen = ({ navigation }) => {
             <FlatList
               data={designations}
               keyExtractor={item => item.quickDesignationId}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.employeeItem}
-                  onPress={() => {
-                    setSelectedDesignationId(item.quickDesignationId);
-                    setShowDesignationPicker(false);
-                  }}
-                  activeOpacity={0.75}
-                >
-                  <Text style={styles.employeeText}>{item.name}</Text>
-                  {selectedDesignationId === item.quickDesignationId ? (
-                    <CheckSquare color={COLORS.primary} size={18} />
-                  ) : null}
-                </TouchableOpacity>
-              )}
+              renderItem={({ item }) => {
+                const isSelected = tempSelectedDesignationId === item.quickDesignationId;
+                return (
+                  <TouchableOpacity
+                    style={[styles.designationItem, isSelected && styles.designationItemSelected]}
+                    onPress={() => setTempSelectedDesignationId(item.quickDesignationId)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.designationText}>{item.name}</Text>
+                    {isSelected ? <Check color="#166534" size={20} strokeWidth={3} /> : null}
+                  </TouchableOpacity>
+                );
+              }}
               ListEmptyComponent={<Text style={styles.emptyText}>No designations available</Text>}
             />
-            <TouchableOpacity style={styles.doneBtn} onPress={() => setShowDesignationPicker(false)}>
-              <Text style={styles.doneBtnText}>Done</Text>
-            </TouchableOpacity>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => {
+                  setTempSelectedDesignationId(selectedDesignationId || '');
+                  setShowDesignationPicker(false);
+                }}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={() => {
+                  setSelectedDesignationId(tempSelectedDesignationId);
+                  setNewDesignationName('');
+                  setShowDesignationPicker(false);
+                }}
+              >
+                <Text style={styles.saveBtnText}>OK</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={showNewDesignationModal}
+        animationType="fade"
+        onRequestClose={() => setShowNewDesignationModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalKeyboardWrapper}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>New Designation</Text>
+                <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowNewDesignationModal(false)}>
+                  <X color={COLORS.textLight} size={18} />
+                </TouchableOpacity>
+              </View>
+              <TextInput
+                style={styles.input}
+                placeholder="Designation name"
+                placeholderTextColor={COLORS.gray}
+                value={tempNewDesignationName}
+                onChangeText={setTempNewDesignationName}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => {
+                    setTempNewDesignationName(newDesignationName || '');
+                    setShowNewDesignationModal(false);
+                  }}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.saveBtn}
+                  onPress={() => {
+                    if (!tempNewDesignationName.trim()) {
+                      Alert.alert('Validation', 'Please enter new designation');
+                      return;
+                    }
+                    setNewDesignationName(tempNewDesignationName.trim());
+                    setSelectedDesignationId('');
+                    setTempSelectedDesignationId('');
+                    setShowNewDesignationModal(false);
+                  }}
+                >
+                  <Text style={styles.saveBtnText}>OK</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -1082,7 +1316,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  newlyAddedBtn: {
+    marginTop: 8,
+  },
   selectText: { color: COLORS.text, fontSize: 14 },
+  selectedDesignationLabel: {
+    marginTop: 10,
+    color: COLORS.textLight,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  selectedDesignationValue: {
+    marginTop: 4,
+    color: COLORS.text,
+    fontSize: 18,
+    fontWeight: '700',
+  },
   placeholder: { color: COLORS.gray },
   optionalRow: {
     marginTop: 12,
@@ -1115,7 +1364,51 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  employeeText: { marginLeft: 8, color: COLORS.text, fontSize: 14 },
+  employeeInfoBlock: {
+    marginLeft: 8,
+    flex: 1,
+  },
+  employeeText: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  employeeSubText: { marginTop: 2, color: COLORS.textLight, fontSize: 12 },
+  newlyAddedItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  removeFromSelectionBtn: {
+    paddingHorizontal: 10,
+    height: 30,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    backgroundColor: '#FEF2F2',
+    justifyContent: 'center',
+  },
+  removeFromSelectionText: {
+    color: '#B91C1C',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  designationItem: {
+    minHeight: 48,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  designationItemSelected: {
+    backgroundColor: '#DCFCE7',
+  },
+  designationText: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '500',
+  },
   doneBtn: {
     marginTop: 12,
     backgroundColor: COLORS.primary,
