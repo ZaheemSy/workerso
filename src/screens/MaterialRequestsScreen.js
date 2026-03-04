@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import {
   createMaterialRequest,
   getMaterialRequestsByProject,
   getMaterialsByOrg,
+  createMaterial,
 } from '../services/storageService';
 import RNFS from 'react-native-fs';
 import * as XLSX from 'xlsx';
@@ -37,7 +38,8 @@ const formatDateTime = iso => {
 
 const MaterialRequestsScreen = ({ navigation, route }) => {
   const { session } = useAuth();
-  const { mode = 'normal', projectId, projectName = 'Project' } = route.params;
+  const params = route?.params || {};
+  const { mode = 'normal', projectId, projectName = 'Project' } = params;
 
   const [materials, setMaterials] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -46,8 +48,11 @@ const MaterialRequestsScreen = ({ navigation, route }) => {
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [tapCount, setTapCount] = useState(0);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [addRequestMode, setAddRequestMode] = useState('pool');
   const [selectedMaterialIds, setSelectedMaterialIds] = useState([]);
   const [quantityByMaterial, setQuantityByMaterial] = useState({});
+  const [showNewMaterialModal, setShowNewMaterialModal] = useState(false);
+  const [newMaterialName, setNewMaterialName] = useState('');
   const [viewRequest, setViewRequest] = useState(null);
   const [showExportModal, setShowExportModal] = useState(false);
 
@@ -147,12 +152,52 @@ const MaterialRequestsScreen = ({ navigation, route }) => {
     loadData();
   };
 
+  const addMaterialFromRequestModal = async () => {
+    const name = newMaterialName.trim();
+    if (!name) {
+      Alert.alert('Validation', 'Please enter material name');
+      return;
+    }
+
+    const existing = materials.find(
+      item => item.name?.trim().toLowerCase() === name.toLowerCase()
+    );
+
+    if (existing) {
+      setSelectedMaterialIds(prev =>
+        prev.includes(existing.materialId) ? prev : [...prev, existing.materialId]
+      );
+      setQuantityByMaterial(prev => (prev[existing.materialId] ? prev : { ...prev, [existing.materialId]: '1' }));
+      setShowNewMaterialModal(false);
+      setNewMaterialName('');
+      setAddRequestMode('pool');
+      Alert.alert('Info', `"${existing.name}" already exists in pool and has been selected.`);
+      return;
+    }
+
+    const created = await createMaterial({
+      orgId: session.orgId,
+      name,
+      approximatePrice: 0,
+      createdBy: session.userId,
+    });
+
+    setMaterials(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    setSelectedMaterialIds(prev =>
+      prev.includes(created.materialId) ? prev : [...prev, created.materialId]
+    );
+    setQuantityByMaterial(prev => ({ ...prev, [created.materialId]: '1' }));
+    setShowNewMaterialModal(false);
+    setNewMaterialName('');
+    setAddRequestMode('pool');
+  };
+
   const requestGrandTotal = request =>
     (request.items || []).reduce((sum, item) => sum + Number(item.total || 0), 0);
 
-  const allRequestsGrandTotal = useMemo(
-    () => requests.reduce((sum, request) => sum + requestGrandTotal(request), 0),
-    [requests]
+  const allRequestsGrandTotal = requests.reduce(
+    (sum, request) => sum + requestGrandTotal(request),
+    0
   );
 
   const toExcelRowsForRequest = request => {
@@ -411,6 +456,27 @@ const MaterialRequestsScreen = ({ navigation, route }) => {
                 <X color={COLORS.textLight} size={18} />
               </TouchableOpacity>
             </View>
+            <View style={styles.modeSwitch}>
+              <TouchableOpacity
+                style={[styles.modeBtn, addRequestMode === 'pool' && styles.modeBtnActive]}
+                onPress={() => setAddRequestMode('pool')}
+              >
+                <Text style={[styles.modeBtnText, addRequestMode === 'pool' && styles.modeBtnTextActive]}>
+                  Add material from pool
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeBtn, addRequestMode === 'new' && styles.modeBtnActive]}
+                onPress={() => {
+                  setAddRequestMode('new');
+                  setShowNewMaterialModal(true);
+                }}
+              >
+                <Text style={[styles.modeBtnText, addRequestMode === 'new' && styles.modeBtnTextActive]}>
+                  Add new material
+                </Text>
+              </TouchableOpacity>
+            </View>
             <FlatList
               data={materials}
               keyExtractor={item => item.materialId}
@@ -438,7 +504,20 @@ const MaterialRequestsScreen = ({ navigation, route }) => {
                   </View>
                 );
               }}
-              ListEmptyComponent={<Text style={styles.emptyText}>No materials in pool</Text>}
+              ListEmptyComponent={
+                <View style={styles.emptyMaterialWrap}>
+                  <Text style={styles.emptyText}>No materials in pool</Text>
+                  <TouchableOpacity
+                    style={styles.emptyAddBtn}
+                    onPress={() => {
+                      setAddRequestMode('new');
+                      setShowNewMaterialModal(true);
+                    }}
+                  >
+                    <Text style={styles.emptyAddBtnText}>Add Material</Text>
+                  </TouchableOpacity>
+                </View>
+              }
             />
 
             <View style={styles.modalActions}>
@@ -447,6 +526,48 @@ const MaterialRequestsScreen = ({ navigation, route }) => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={saveRequest}>
                 <Text style={styles.saveBtnText}>Save Request</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={showNewMaterialModal}
+        animationType="fade"
+        onRequestClose={() => setShowNewMaterialModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>New Material</Text>
+              <TouchableOpacity onPress={() => setShowNewMaterialModal(false)}>
+                <X color={COLORS.textLight} size={18} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.fieldLabel}>Material name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Material name"
+              placeholderTextColor={COLORS.gray}
+              value={newMaterialName}
+              onChangeText={setNewMaterialName}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => {
+                  setShowNewMaterialModal(false);
+                  setNewMaterialName('');
+                }}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={addMaterialFromRequestModal}>
+                <Text style={styles.saveBtnText}>Add</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -609,6 +730,42 @@ const styles = StyleSheet.create({
     borderColor: '#FDE68A',
   },
   tapHint: { marginTop: 10, color: COLORS.textLight, fontSize: 12 },
+  modeSwitch: {
+    marginTop: 10,
+    marginBottom: 8,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  modeBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  modeBtnActive: {
+    borderColor: '#93C5FD',
+    backgroundColor: '#EFF6FF',
+  },
+  modeBtnText: {
+    color: COLORS.textLight,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modeBtnTextActive: {
+    color: '#1D4ED8',
+  },
+  fieldLabel: {
+    marginTop: 10,
+    marginBottom: 6,
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
   cancelBtn: { height: 36, justifyContent: 'center', paddingHorizontal: 12 },
   cancelBtnText: { color: COLORS.textLight, fontWeight: '600' },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 },
@@ -632,6 +789,23 @@ const styles = StyleSheet.create({
   materialCheckbox: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   materialName: { marginLeft: 8, color: COLORS.text, fontSize: 14, fontWeight: '600' },
   materialRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  emptyMaterialWrap: { marginTop: 20, alignItems: 'center' },
+  emptyAddBtn: {
+    marginTop: 12,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  emptyAddBtnText: {
+    color: '#1D4ED8',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   unitPrice: { color: COLORS.textLight, fontSize: 12 },
   qtyInput: {
     width: 58,

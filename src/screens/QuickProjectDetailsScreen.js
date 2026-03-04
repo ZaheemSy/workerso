@@ -277,7 +277,7 @@ const QuickProjectDetailsScreen = ({ navigation, route }) => {
   };
 
   const createEmployeeAndAssignToDepartment = async () => {
-    if (!selectedDepartment || !canManageQuickProject) return;
+    if (!canManageQuickProject) return;
     const employeeName = newEmployeeName.trim();
     if (!employeeName) {
       Alert.alert('Validation', 'Please enter employee name');
@@ -305,23 +305,24 @@ const QuickProjectDetailsScreen = ({ navigation, route }) => {
 
     await addEmployeeToQuickProject(quickProjectId, quickEmployeeId);
 
-    const nextDepartmentEmployeeIds = selectedDepartmentEmployeeIds.includes(quickEmployeeId)
-      ? selectedDepartmentEmployeeIds
-      : [...selectedDepartmentEmployeeIds, quickEmployeeId];
-    const nextDepartments = (project?.departments || []).map(item =>
-      item.quickDepartmentId === selectedDepartment.quickDepartmentId
-        ? { ...item, employeeIds: Array.from(new Set(nextDepartmentEmployeeIds)) }
-        : item
-    );
-    const nextProjectEmployeeIds = Array.from(
-      new Set([...(project?.employeeIds || []), quickEmployeeId])
-    );
-    await updateQuickProject(quickProjectId, {
-      departments: nextDepartments,
-      employeeIds: nextProjectEmployeeIds,
-    });
-
-    setSelectedDepartmentEmployeeIds(Array.from(new Set(nextDepartmentEmployeeIds)));
+    if (selectedDepartment) {
+      const nextDepartmentEmployeeIds = selectedDepartmentEmployeeIds.includes(quickEmployeeId)
+        ? selectedDepartmentEmployeeIds
+        : [...selectedDepartmentEmployeeIds, quickEmployeeId];
+      const nextDepartments = (project?.departments || []).map(item =>
+        item.quickDepartmentId === selectedDepartment.quickDepartmentId
+          ? { ...item, employeeIds: Array.from(new Set(nextDepartmentEmployeeIds)) }
+          : item
+      );
+      const nextProjectEmployeeIds = Array.from(
+        new Set([...(project?.employeeIds || []), quickEmployeeId])
+      );
+      await updateQuickProject(quickProjectId, {
+        departments: nextDepartments,
+        employeeIds: nextProjectEmployeeIds,
+      });
+      setSelectedDepartmentEmployeeIds(Array.from(new Set(nextDepartmentEmployeeIds)));
+    }
 
     setNewEmployeeName('');
     setDesignationMode('pool');
@@ -517,10 +518,26 @@ const QuickProjectDetailsScreen = ({ navigation, route }) => {
           ) : null}
         </View>
 
-        <TouchableOpacity style={styles.addButton} onPress={() => setShowPicker(true)}>
-          <Plus color={COLORS.white} size={16} />
-          <Text style={styles.addButtonText}>Add Employee</Text>
-        </TouchableOpacity>
+        <View style={styles.addButtonsRow}>
+          <TouchableOpacity style={[styles.addButton, styles.addButtonHalf]} onPress={() => setShowPicker(true)}>
+            <Plus color={COLORS.white} size={16} />
+            <Text style={styles.addButtonText}>Add employees from pool</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.addButton, styles.addNewEmployeeButton, styles.addButtonHalf]}
+            onPress={() => {
+              setSelectedDepartment(null);
+              setNewEmployeeName('');
+              setDesignationMode('pool');
+              setSelectedDesignationId('');
+              setNewDesignationName('');
+              setShowNewEmployeeModal(true);
+            }}
+          >
+            <UserPlus color={COLORS.white} size={16} />
+            <Text style={styles.addButtonText}>Add New Employee</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.searchBox}>
           <Search color={COLORS.gray} size={18} />
@@ -1112,6 +1129,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+  addButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
   addButton: {
     height: 44,
     borderRadius: 12,
@@ -1119,7 +1141,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    marginBottom: 12,
+  },
+  addButtonHalf: {
+    flex: 1,
+    paddingHorizontal: 10,
+  },
+  addNewEmployeeButton: {
+    backgroundColor: '#1E40AF',
   },
   addButtonText: { color: COLORS.white, fontSize: 14, fontWeight: '600', marginLeft: 8 },
   searchBox: {
